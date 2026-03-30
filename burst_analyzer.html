@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Burst Analyzer — Multi-Soglia</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:     #0b0c0e;
+    --panel:  #111316;
+    --border: #1f2228;
+    --border2:#2c3038;
+    --accent: #f0c040;
+    --text:   #d8dce6;
+    --muted:  #555b6a;
+    --green:  #3ccf7e;
+    --red:    #e05a2b;
+    --blue:   #4da6ff;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .logo { font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:17px; color:var(--accent); letter-spacing:-0.5px; }
+  .logo span { color:var(--muted); font-weight:400; }
+  .badge { font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600; background:var(--border2); color:var(--muted); padding:3px 8px; border-radius:3px; letter-spacing:1px; text-transform:uppercase; }
+  .file-status { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .file-status .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); transition:background .3s; }
+  .file-status .dot.ok { background:var(--green); }
+
+  .layout { display:grid; grid-template-columns:300px 1fr; min-height:calc(100vh - 57px); }
+
+  .sidebar {
+    background:var(--panel); border-right:1px solid var(--border);
+    padding:22px 18px; display:flex; flex-direction:column; gap:24px;
+    overflow-y:auto; max-height:calc(100vh - 57px); position:sticky; top:57px;
+  }
+  .sec-title {
+    font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600;
+    color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;
+    margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border);
+  }
+
+  .upload-zone {
+    border:1.5px dashed var(--border2); border-radius:6px; padding:20px 12px;
+    text-align:center; cursor:pointer; transition:border-color .2s, background .2s; position:relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color:var(--accent); background:rgba(240,192,64,.04); }
+  .upload-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .upload-icon { font-size:26px; margin-bottom:6px; }
+  .upload-label { font-size:12px; color:var(--muted); }
+  .upload-label strong { color:var(--accent); display:block; margin-bottom:3px; font-size:13px; }
+
+  .ctrl-group { margin-bottom:14px; }
+  .ctrl-label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); margin-bottom:5px; display:flex; justify-content:space-between; }
+  .ctrl-label .val { color:var(--accent); font-weight:600; }
+  input[type=range] {
+    width:100%; height:3px; -webkit-appearance:none; appearance:none;
+    background:var(--border2); border-radius:2px; outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--accent); border:2px solid var(--bg); box-shadow:0 0 0 1px var(--accent); cursor:pointer;
+  }
+
+  /* ── SOGLIE ── */
+  .thresholds-list { display:flex; flex-direction:column; gap:8px; }
+
+  .thr-row {
+    display:grid;
+    grid-template-columns:12px 1fr auto 28px;
+    align-items:center; gap:8px;
+    background:var(--bg); border:1px solid var(--border2); border-radius:5px; padding:9px 10px;
+    transition:border-color .2s;
+  }
+  .thr-row:hover { border-color:var(--border); }
+  .thr-color-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+
+  .thr-watt-group {
+    display:flex; align-items:baseline; gap:5px;
+  }
+  .thr-input {
+    width:70px; background:transparent; border:none; border-bottom:1px solid var(--border2);
+    color:var(--accent); font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:700;
+    text-align:right; outline:none; padding:2px 0;
+    transition:border-color .2s;
+  }
+  .thr-input:focus { border-bottom-color:var(--accent); }
+  .thr-unit { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); }
+  .thr-label { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); white-space:nowrap; }
+
+  .thr-del {
+    background:rgba(224,90,43,.12); color:var(--red); border:1px solid rgba(224,90,43,.25);
+    border-radius:4px; width:24px; height:24px; font-size:15px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:background .2s; flex-shrink:0;
+  }
+  .thr-del:hover { background:rgba(224,90,43,.3); }
+
+  .add-thr-btn {
+    width:100%; background:transparent; border:1px dashed var(--border2);
+    color:var(--muted); font-family:'IBM Plex Mono',monospace; font-size:12px;
+    padding:8px; border-radius:5px; cursor:pointer; transition:border-color .2s, color .2s;
+    margin-top:4px;
+  }
+  .add-thr-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+  .run-btn {
+    width:100%; background:var(--accent); color:#000; border:none; border-radius:5px;
+    padding:11px; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700;
+    letter-spacing:.5px; cursor:pointer; transition:opacity .2s, transform .1s;
+  }
+  .run-btn:hover { opacity:.88; }
+  .run-btn:active { transform:scale(.98); }
+  .run-btn:disabled { opacity:.35; cursor:not-allowed; }
+
+  .export-btn {
+    width:100%; background:transparent; color:var(--accent); border:1px solid var(--accent);
+    border-radius:5px; padding:9px; font-family:'IBM Plex Mono',monospace; font-size:12px;
+    font-weight:600; cursor:pointer; transition:background .2s; margin-top:8px;
+  }
+  .export-btn:hover { background:rgba(240,192,64,.08); }
+  .export-btn:disabled { opacity:.3; cursor:not-allowed; }
+
+  .main { padding:26px 28px; display:flex; flex-direction:column; gap:24px; }
+
+  .drop-hint {
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; color:var(--muted); min-height:400px;
+  }
+  .drop-hint .big { font-size:48px; }
+  .drop-hint h2 { font-family:'IBM Plex Mono',monospace; font-size:18px; color:var(--border2); }
+  .drop-hint p { font-size:12px; text-align:center; max-width:340px; line-height:1.7; }
+
+  .summary-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:10px; }
+  .summary-card {
+    background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:14px 16px;
+    position:relative; overflow:hidden;
+  }
+  .summary-card .top-bar { position:absolute; top:0; left:0; right:0; height:2px; }
+  .sc-label { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:7px; }
+  .sc-val { font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:700; line-height:1; }
+  .sc-sub { font-size:11px; color:var(--muted); margin-top:5px; line-height:1.5; }
+
+  .chart-wrap { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:16px; }
+  .chart-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px; }
+  .chart-title { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+  .chart-legend { display:flex; gap:14px; flex-wrap:wrap; }
+  .legend-item { display:flex; align-items:center; gap:6px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); }
+  .legend-dot { width:10px; height:3px; border-radius:2px; flex-shrink:0; }
+  #powerChart { width:100%; height:180px; display:block; }
+
+  .tables-area { display:flex; flex-direction:column; gap:18px; }
+  .thr-table-block { background:var(--panel); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .thr-table-header {
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+    padding:12px 18px; border-bottom:1px solid var(--border);
+    border-left:3px solid transparent;
+  }
+  .thr-table-title { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; }
+  .thr-table-meta { display:flex; gap:16px; flex-wrap:wrap; }
+  .thr-meta-item { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); }
+  .thr-meta-item strong { color:var(--text); }
+
+  table { width:100%; border-collapse:collapse; }
+  thead tr { background:rgba(255,255,255,.02); }
+  thead th {
+    font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:600;
+    color:var(--muted); letter-spacing:.8px; text-transform:uppercase;
+    padding:9px 14px; text-align:left; border-bottom:1px solid var(--border);
+    white-space:nowrap; cursor:pointer; user-select:none; transition:color .15s;
+  }
+  thead th:hover { color:var(--text); }
+  thead th.sort-asc::after  { content:' ▲'; font-size:8px; }
+  thead th.sort-desc::after { content:' ▼'; font-size:8px; }
+
+  tbody tr { border-bottom:1px solid var(--border); transition:background .1s; cursor:pointer; }
+  tbody tr:hover { background:rgba(255,255,255,.03); }
+  tbody tr:last-child { border-bottom:none; }
+  tbody tr.selected-row { background:rgba(240,192,64,.07); }
+
+  td {
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text);
+    padding:9px 14px; white-space:nowrap;
+  }
+  td.dim  { color:var(--muted); font-size:10px; }
+  td.bold { font-weight:600; color:#fff; }
+  td.green { color:var(--green); font-weight:600; }
+  td.red   { color:var(--red); font-weight:600; }
+
+  .power-bar { height:3px; background:var(--border2); border-radius:2px; overflow:hidden; margin-top:4px; }
+  .power-bar-fill { height:100%; border-radius:2px; }
+
+  .msg { font-family:'IBM Plex Mono',monospace; font-size:11px; padding:8px 12px; border-radius:4px; margin-top:8px; }
+  .msg.error { background:rgba(224,90,43,.12); color:var(--red); border:1px solid rgba(224,90,43,.25); }
+  .msg.info  { background:rgba(77,166,255,.08); color:var(--blue); border:1px solid rgba(77,166,255,.2); }
+
+  .spinner { display:inline-block; width:13px; height:13px; border:2px solid var(--border2); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .processing-state { display:none; }
+  .processing-state.active { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; margin-top:8px; }
+
+  ::-webkit-scrollbar { width:5px; height:5px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+
+  @media (max-width:860px) {
+    .layout { grid-template-columns:1fr; }
+    .sidebar { max-height:none; position:static; border-right:none; border-bottom:1px solid var(--border); }
+    .main { padding:18px 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo">BURST<span>_ANALYZER</span></div>
+    <div class="badge">multi-soglia</div>
+  </div>
+  <div class="file-status" id="fileStatus">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">nessun file caricato</span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+
+    <div>
+      <div class="sec-title">File FIT</div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" accept=".fit" id="fitInput">
+        <div class="upload-icon">📂</div>
+        <div class="upload-label">
+          <strong>Seleziona file FIT</strong>
+          oppure trascina qui
+        </div>
+      </div>
+      <div id="parseMsg"></div>
+    </div>
+
+    <div>
+      <div class="sec-title">Soglie Anaerobiche</div>
+      <div class="thresholds-list" id="thrList"></div>
+      <button class="add-thr-btn" id="addThrBtn">+ Aggiungi Soglia</button>
+    </div>
+
+    <div>
+      <div class="sec-title">Parametri Burst</div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Durata Minima (s) <span class="val" id="minDurVal">4</span></div>
+        <input type="range" id="minDurSlider" min="1" max="60" step="1" value="4">
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Gap Merge (s) <span class="val" id="mergeGapVal">2</span></div>
+        <input type="range" id="mergeGapSlider" min="0" max="15" step="1" value="2">
+        <div style="font-size:10px; color:var(--muted); margin-top:5px; font-family:'IBM Plex Mono'; line-height:1.5;">unisce burst separati da ≤ N secondi</div>
+      </div>
+    </div>
+
+    <div>
+      <button class="run-btn" id="runBtn" disabled>▶ ANALIZZA</button>
+      <div class="processing-state" id="processingState">
+        <div class="spinner"></div><span>Elaborazione...</span>
+      </div>
+      <button class="export-btn" id="exportBtn" disabled>⬇ Esporta CSV (tutte le soglie)</button>
+    </div>
+
+  </aside>
+
+  <main class="main">
+
+    <div class="drop-hint" id="dropHint">
+      <div class="big">⚡</div>
+      <h2>Burst Analyzer</h2>
+      <p>Carica un file FIT</p>
+      <p style="margin-top:10px; font-family:'IBM Plex Mono'; font-size:10px; color:var(--muted);">es: 240W — 250W — 260W — 270W · durata min 4s</p>
+    </div>
+
+    <div id="resultsArea" style="display:none; flex-direction:column; gap:24px;">
+      <div class="summary-row" id="summaryRow"></div>
+      <div class="chart-wrap">
+        <div class="chart-header">
+          <span class="chart-title">Profilo Potenza — Burst Evidenziati</span>
+          <div class="chart-legend" id="chartLegend"></div>
+        </div>
+        <canvas id="powerChart"></canvas>
+      </div>
+      <div class="tables-area" id="tablesArea"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── PALETTE ──────────────────────────────────────────────
+const PALETTE = ['#f0c040','#4da6ff','#3ccf7e','#e05a2b','#c084fc','#fb7185','#34d399','#fbbf24'];
+const API_BASE = 'http://127.0.0.1:8010';
+
+// ── FIT PARSER ───────────────────────────────────────────
+class FitParser {
+  constructor(buf){ this.buf=new DataView(buf); this.pos=0; this.defs={}; this.records=[]; this.len=this.buf.byteLength; }
+  canRead(n){ return this.pos+n<=this.len; }
+  ensure(n,ctx=''){ if(!this.canRead(n)) throw new Error(`File FIT troncato${ctx?` (${ctx})`:''}`); }
+  u8(){ this.ensure(1,'u8'); return this.buf.getUint8(this.pos++); }
+  u16l(){ this.ensure(2,'u16'); const v=this.buf.getUint16(this.pos,true); this.pos+=2; return v; }
+  u16b(){ this.ensure(2,'u16'); const v=this.buf.getUint16(this.pos,false);this.pos+=2; return v; }
+  u32l(){ this.ensure(4,'u32'); const v=this.buf.getUint32(this.pos,true); this.pos+=4; return v; }
+  baseType(bt){ const m={0x00:[1,false],0x01:[1,true],0x02:[1,false],0x83:[2,true],0x84:[2,false],0x85:[4,true],0x86:[4,false],0x8B:[4,false],0x88:[4,false],0x07:[1,false]}; return m[bt]||[1,false]; }
+  rf(size,signed,le=true){
+    this.ensure(size,`field ${size}B`);
+    if(size===1){const v=this.buf.getUint8(this.pos);this.pos++;return signed?(v>=128?v-256:v):v;}
+    if(size===2){const v=le?this.buf.getUint16(this.pos,true):this.buf.getUint16(this.pos,false);this.pos+=2;return v;}
+    if(size===4){const v=le?this.buf.getUint32(this.pos,true):this.buf.getUint32(this.pos,false);this.pos+=4;return v;}
+    const val=[];for(let i=0;i<size;i++)val.push(this.buf.getUint8(this.pos++));return val;
+  }
+  parse(){
+    const hs=this.u8();this.u8();this.u16l();const ds=this.u32l();
+    const mg=[this.u8(),this.u8(),this.u8(),this.u8()];
+    if(mg[0]!==46||mg[1]!==70||mg[2]!==73||mg[3]!==84) throw new Error('Non è un file FIT valido');
+    if(hs===14)this.u16l();
+    const end=Math.min(this.pos+ds,this.len);
+    while(this.pos<end){
+      if(this.pos+1>end) break;
+      const hdr=this.u8();
+      if(hdr&0x80){
+        const ln=(hdr>>5)&0x03;
+        const def=this.defs[ln];
+        if(def)this.readRec(def,end);
+        else break;
+        continue;
+      }
+      const mt=(hdr>>6)&0x03;const ln=hdr&0x0F;
+      if(mt===1||mt===3){
+        if(this.pos+5>end) break;
+        const hasDev=(mt===3);this.u8();const arch=this.u8();
+        const gmn=arch===0?this.u16l():this.u16b();const fc=this.u8();
+        if(this.pos+fc*3>end) break;
+        const fields=[];
+        for(let i=0;i<fc;i++){const fd=this.u8();const fs=this.u8();const bt=this.u8();fields.push({def:fd,size:fs,base:bt});}
+        if(hasDev){
+          if(this.pos+1>end) break;
+          const dc=this.u8();
+          if(this.pos+dc*3>end) break;
+          for(let i=0;i<dc;i++){this.u8();this.u8();this.u8();}
+        }
+        this.defs[ln]={gmn,arch,fields};
+      } else if(mt===0){const def=this.defs[ln];if(def)this.readRec(def,end);}
+    }
+    return this.records;
+  }
+  readRec(def,endLimit=this.len){
+    const need=def.fields.reduce((a,f)=>a+f.size,0);
+    if(this.pos+need>endLimit||!this.canRead(need)){
+      this.pos=Math.min(endLimit,this.len);
+      return;
+    }
+    const le=def.arch===0;const vals={};
+    for(const f of def.fields){const[sz,sg]=this.baseType(f.base);const rp=f.size/sz;if(rp>1){const arr=[];for(let r=0;r<rp;r++)arr.push(this.rf(sz,sg,le));vals[f.def]=arr;}else vals[f.def]=this.rf(sz,sg,le);}
+    if(def.gmn===20){
+      const gf=(n,sc=1,off=0)=>{const raw=vals[n];if(raw===undefined||raw===0xFFFF||raw===0xFFFFFFFF||raw===0xFF)return null;return raw/sc+off;};
+      this.records.push({
+        timestamp: vals[253]!==undefined?vals[253]+631065600:null,
+        power:     gf(7), heartrate:gf(3), cadence:gf(4),
+        distance:  gf(5,100), altitude:gf(2,5,-500)
+      });
+    }
+  }
+}
+
+// ── STATE ────────────────────────────────────────────────
+let rawRecords = [];
+let thresholds = [{watt:300,id:1},{watt:350,id:2},{watt:400,id:3}];
+let nextId = 4;
+let allResults = [];
+let sortStates = {};
+let currentFitFile = null;
+
+// ── HELPERS ──────────────────────────────────────────────
+const fmtTime = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.round(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`:String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); };
+const fmtDur  = s => { const m=Math.floor(s/60),r=Math.round(s%60); return m>0?`${m}m ${r}s`:`${r}s`; };
+const avg     = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+
+// ── THRESHOLD UI ─────────────────────────────────────────
+function renderThrList(){
+  const list=document.getElementById('thrList');
+  list.innerHTML='';
+  thresholds.forEach((thr,idx)=>{
+    const color=PALETTE[idx%PALETTE.length];
+    thr.color=color;
+    const row=document.createElement('div');
+    row.className='thr-row';
+    row.innerHTML=`
+      <div class="thr-color-dot" style="background:${color}"></div>
+      <div class="thr-label">Soglia ${idx+1}</div>
+      <div class="thr-watt-group">
+        <input class="thr-input" type="number" min="50" max="2000" value="${thr.watt}" data-id="${thr.id}">
+        <span class="thr-unit">W</span>
+      </div>
+      <button class="thr-del" data-id="${thr.id}" title="Rimuovi">×</button>
+    `;
+    list.appendChild(row);
+    row.querySelector('.thr-input').addEventListener('change',e=>{
+      const t=thresholds.find(t=>t.id===thr.id);
+      if(t) t.watt=Math.max(50,+e.target.value||thr.watt);
+    });
+    row.querySelector('.thr-del').addEventListener('click',e=>{
+      if(thresholds.length<=1) return;
+      thresholds=thresholds.filter(t=>t.id!==+e.currentTarget.dataset.id);
+      renderThrList();
+    });
+  });
+}
+
+document.getElementById('addThrBtn').addEventListener('click',()=>{
+  if(thresholds.length>=8) return;
+  const last=thresholds.length?thresholds[thresholds.length-1].watt:250;
+  thresholds.push({watt:last+10,id:nextId++});
+  renderThrList();
+});
+
+renderThrList();
+
+// ── SLIDERS ──────────────────────────────────────────────
+['minDurSlider','mergeGapSlider'].forEach(id=>{
+  const sl=document.getElementById(id);
+  const vl=document.getElementById(id.replace('Slider','Val'));
+  sl.addEventListener('input',()=>vl.textContent=sl.value);
+  vl.textContent=sl.value;
+});
+
+// ── FILE LOAD ────────────────────────────────────────────
+function loadFit(file){
+  currentFitFile=file;
+  const msg=document.getElementById('parseMsg');
+  msg.innerHTML='';
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('exportBtn').disabled=true;
+  document.getElementById('statusDot').className='dot';
+  document.getElementById('statusText').textContent='caricamento...';
+  runAnalysis();
+}
+
+function parseFitClient(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const parser=new FitParser(e.target.result);
+        const recs=parser.parse().filter(r=>r.power!==null&&r.power!==undefined);
+        if(!recs.length){reject(new Error('Nessun dato di potenza trovato.'));return;}
+        const t0=recs[0].timestamp||0;
+        recs.forEach((r,i)=>r.time_sec=r.timestamp?r.timestamp-t0:i);
+        resolve(recs);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror=()=>reject(new Error('Errore lettura file'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function analyzeViaServer(file,minDur,mergeGap){
+  const payload=thresholds
+    .slice()
+    .sort((a,b)=>a.watt-b.watt)
+    .map((thr,idx)=>({
+      id:thr.id,
+      watt:Math.max(50,+thr.watt||0),
+      color:PALETTE[idx%PALETTE.length]
+    }));
+
+  const fd=new FormData();
+  fd.append('file',file,file.name);
+  fd.append('thresholds_json',JSON.stringify(payload));
+  fd.append('min_dur',String(minDur));
+  fd.append('merge_gap',String(mergeGap));
+
+  const rsp=await fetch(`${API_BASE}/api/analyze`,{method:'POST',body:fd});
+  if(!rsp.ok){
+    let msg='Server non disponibile';
+    try{ const j=await rsp.json(); if(j?.detail) msg=j.detail; }catch{}
+    throw new Error(msg);
+  }
+  return rsp.json();
+}
+
+// ── BURST DETECTION ──────────────────────────────────────
+function detectBursts(records, threshold, minDur, mergeGap){
+  // Raw segments above threshold
+  const segs=[];let inB=false,bs=null;
+  for(let i=0;i<records.length;i++){
+    if(records[i].power>=threshold&&!inB){inB=true;bs=i;}
+    else if(records[i].power<threshold&&inB){inB=false;segs.push({s:bs,e:i-1});}
+  }
+  if(inB)segs.push({s:bs,e:records.length-1});
+
+  // Merge gap
+  const merged=[];
+  for(const seg of segs){
+    if(!merged.length){merged.push({...seg});continue;}
+    const last=merged[merged.length-1];
+    if(records[seg.s].time_sec-records[last.e].time_sec<=mergeGap)last.e=seg.e;
+    else merged.push({...seg});
+  }
+
+  // Filter by duration + compute metrics
+  return merged
+    .filter(({s,e})=>(records[e].time_sec-records[s].time_sec)>=minDur)
+    .map(({s,e},idx)=>{
+      const slice=records.slice(s,e+1);
+      const pows=slice.map(r=>r.power);
+      const ap=avg(pows);
+      const half=Math.floor(pows.length/2);
+      const f1=half?avg(pows.slice(0,half)):ap;
+      const f2=pows.slice(half).length?avg(pows.slice(half)):ap;
+      const hrs=slice.map(r=>r.heartrate).filter(h=>h&&h>0);
+      const cads=slice.map(r=>r.cadence).filter(c=>c&&c>0);
+      return{
+        rank:idx+1,
+        seg_start:s,seg_end:e,
+        start_time:records[s].time_sec,
+        end_time:records[e].time_sec,
+        duration:+(records[e].time_sec-records[s].time_sec).toFixed(1),
+        avg_power:+ap.toFixed(1),
+        max_power:Math.max(...pows),
+        min_power:Math.min(...pows),
+        delta_above:+(ap-threshold).toFixed(1),
+        fatigue_idx:f1>0?+(f2/f1).toFixed(3):1,
+        avg_hr:hrs.length?+avg(hrs).toFixed(0):null,
+        avg_cadence:cads.length?+avg(cads).toFixed(0):null,
+        hour:fmtTime(records[s].time_sec),
+      };
+    });
+}
+
+// ── RUN ──────────────────────────────────────────────────
+async function runAnalysis(){
+  if(!currentFitFile && !rawRecords.length)return;
+
+  const msg=document.getElementById('parseMsg');
+  const minDur=+document.getElementById('minDurSlider').value;
+  const mergeGap=+document.getElementById('mergeGapSlider').value;
+
+  // Sync watt values from inputs (use last typed value)
+  document.querySelectorAll('.thr-input').forEach(inp=>{
+    const t=thresholds.find(t=>t.id===+inp.dataset.id);
+    if(t)t.watt=Math.max(50,+inp.value||t.watt);
+  });
+  thresholds.forEach((t,i)=>t.color=PALETTE[i%PALETTE.length]);
+
+  document.getElementById('processingState').classList.add('active');
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('exportBtn').disabled=true;
+
+  try{
+    if(!currentFitFile) throw new Error('Nessun file caricato');
+    const serverData=await analyzeViaServer(currentFitFile,minDur,mergeGap);
+    rawRecords=(serverData.records||[]);
+    allResults=(serverData.allResults||[]).map(r=>({
+      threshold:+r.threshold,
+      color:r.color,
+      bursts:r.bursts||[]
+    }));
+    if(!rawRecords.length) throw new Error('Nessun dato di potenza trovato.');
+
+    const fileName=serverData?.stats?.fileName||currentFitFile.name;
+    document.getElementById('statusDot').className='dot ok';
+    document.getElementById('statusText').textContent=`${fileName} — ${rawRecords.length} campioni`;
+    msg.innerHTML=`<div class="msg info">✓ ${rawRecords.length} record · ${fmtTime(rawRecords[rawRecords.length-1].time_sec)} · core Python</div>`;
+  }catch(serverErr){
+    try{
+      if(!currentFitFile) throw serverErr;
+      rawRecords=await parseFitClient(currentFitFile);
+      allResults=thresholds
+        .slice().sort((a,b)=>a.watt-b.watt)
+        .map(thr=>({threshold:thr.watt,color:thr.color,bursts:detectBursts(rawRecords,thr.watt,minDur,mergeGap)}));
+      document.getElementById('statusDot').className='dot ok';
+      document.getElementById('statusText').textContent=`${currentFitFile.name} — ${rawRecords.length} campioni`;
+      msg.innerHTML=`<div class="msg info">✓ ${rawRecords.length} record · ${fmtTime(rawRecords[rawRecords.length-1].time_sec)} · fallback locale (${serverErr.message})</div>`;
+    }catch(err){
+      msg.innerHTML=`<div class="msg error">Errore: ${err.message}</div>`;
+      document.getElementById('statusText').textContent='errore';
+      document.getElementById('processingState').classList.remove('active');
+      document.getElementById('runBtn').disabled=!currentFitFile;
+      return;
+    }
+  }
+
+  renderSummary();
+  renderPowerChart();
+  renderAllTables();
+
+  document.getElementById('resultsArea').style.display='flex';
+  document.getElementById('dropHint').style.display='none';
+  document.getElementById('processingState').classList.remove('active');
+  document.getElementById('runBtn').disabled=!currentFitFile;
+  document.getElementById('exportBtn').disabled=false;
+}
+
+// ── SUMMARY ──────────────────────────────────────────────
+function renderSummary(){
+  const actDur=rawRecords[rawRecords.length-1].time_sec;
+  document.getElementById('summaryRow').innerHTML=allResults.map(({threshold,color,bursts})=>{
+    const n=bursts.length;
+    const totT=bursts.reduce((a,b)=>a+b.duration,0);
+    const sub=n?`${fmtDur(totT)} · ${(totT/actDur*100).toFixed(1)}% ride`:'nessun burst';
+    return`<div class="summary-card">
+      <div class="top-bar" style="background:${color}"></div>
+      <div class="sc-label">≥ ${threshold} W</div>
+      <div class="sc-val" style="color:${color}">${n}</div>
+      <div class="sc-sub">${sub}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── CHART ─────────────────────────────────────────────────
+function renderPowerChart(highlightBurst=null,highlightColor=null){
+  const canvas=document.getElementById('powerChart');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.offsetWidth||800;const H=180;
+  canvas.width=W;canvas.height=H;
+
+  const records=rawRecords;
+  const maxP=Math.max(...records.map(r=>r.power),...allResults.map(r=>r.threshold))*1.08;
+  const tMax=records[records.length-1].time_sec;
+  const pad={t:10,r:10,b:26,l:50};
+  const iW=W-pad.l-pad.r,iH=H-pad.t-pad.b;
+  const xP=t=>pad.l+(t/tMax)*iW;
+  const yP=p=>pad.t+(1-Math.min(p,maxP)/maxP)*iH;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  ctx.font='9px IBM Plex Mono';ctx.textAlign='right';ctx.fillStyle='#555b6a';
+  [0,Math.round(maxP/2/50)*50,Math.round(maxP/50)*50].forEach(v=>{
+    const y=yP(v);
+    ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=.5;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillText(v+'W',pad.l-4,y+3);
+  });
+
+  // X labels
+  ctx.textAlign='center';ctx.fillStyle='#555b6a';
+  const step=Math.ceil(tMax/8/300)*300;
+  for(let t=0;t<=tMax;t+=step)ctx.fillText(fmtTime(t),xP(t),H-4);
+
+  // Burst bands (all thresholds, semi-transparent)
+  allResults.forEach(({color,bursts})=>{
+    ctx.fillStyle=color+'18';
+    bursts.forEach(b=>ctx.fillRect(xP(b.start_time),pad.t,Math.max(1,xP(b.end_time)-xP(b.start_time)),iH));
+  });
+
+  // Highlighted burst (from row click)
+  if(highlightBurst&&highlightColor){
+    const x1=xP(highlightBurst.start_time),x2=xP(highlightBurst.end_time);
+    ctx.fillStyle=highlightColor+'45';
+    ctx.fillRect(x1,pad.t,Math.max(2,x2-x1),iH);
+    ctx.strokeStyle=highlightColor;ctx.lineWidth=2;
+    ctx.strokeRect(x1,pad.t,Math.max(2,x2-x1),iH);
+  }
+
+  // Power line
+  ctx.beginPath();ctx.strokeStyle='#4da6ff80';ctx.lineWidth=1.2;
+  records.forEach((r,i)=>{const x=xP(r.time_sec);const y=yP(r.power);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+
+  // Threshold lines
+  allResults.forEach(({threshold,color})=>{
+    ctx.strokeStyle=color;ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(pad.l,yP(threshold));ctx.lineTo(W-pad.r,yP(threshold));ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font='9px IBM Plex Mono';ctx.textAlign='left';ctx.fillStyle=color;
+    ctx.fillText(threshold+'W',pad.l+3,yP(threshold)-3);
+  });
+
+  // Legend
+  document.getElementById('chartLegend').innerHTML=allResults.map(r=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${r.color}"></div>${r.threshold}W — ${r.bursts.length}</div>`
+  ).join('');
+}
+
+// ── TABLES ───────────────────────────────────────────────
+function renderAllTables(){
+  const area=document.getElementById('tablesArea');
+  area.innerHTML='';
+  allResults.forEach(res=>buildTable(res,area));
+}
+
+function buildTable({threshold,color,bursts},container){
+  const thrKey=`t${threshold}`;
+  if(!sortStates[thrKey])sortStates[thrKey]={col:'rank',dir:'asc'};
+  const ss=sortStates[thrKey];
+  const maxPow=bursts.length?Math.max(...bursts.map(b=>b.avg_power)):1;
+
+  const block=document.createElement('div');
+  block.className='thr-table-block';
+
+  const avgW=bursts.length?(bursts.reduce((a,b)=>a+b.avg_power,0)/bursts.length).toFixed(0):'-';
+  const avgDur=bursts.length?fmtDur(bursts.reduce((a,b)=>a+b.duration,0)/bursts.length):'-';
+  const maxW=bursts.length?Math.max(...bursts.map(b=>b.max_power)):'-';
+  const totDur=bursts.length?fmtDur(bursts.reduce((a,b)=>a+b.duration,0)):'-';
+
+  block.innerHTML=`
+    <div class="thr-table-header" style="border-left-color:${color}">
+      <span class="thr-table-title" style="color:${color}">≥ ${threshold} W — ${bursts.length} burst</span>
+      <div class="thr-table-meta">
+        ${bursts.length?`
+          <span class="thr-meta-item">Totale: <strong>${totDur}</strong></span>
+          <span class="thr-meta-item">Dur. media: <strong>${avgDur}</strong></span>
+          <span class="thr-meta-item">Avg W: <strong>${avgW} W</strong></span>
+          <span class="thr-meta-item">Picco: <strong>${maxW} W</strong></span>
+        `:''}
+      </div>
+    </div>
+    ${bursts.length===0
+      ?`<div style="padding:22px;text-align:center;font-family:'IBM Plex Mono';font-size:12px;color:var(--muted);">Nessun burst con questa soglia e durata minima.</div>`
+      :`<div style="overflow-x:auto;"><table>
+          <thead><tr>
+            <th data-col="rank">#</th>
+            <th data-col="hour">Inizio</th>
+            <th data-col="duration">Durata (s)</th>
+            <th data-col="avg_power">Avg W</th>
+            <th data-col="max_power">Max W</th>
+            <th data-col="min_power">Min W</th>
+            <th data-col="delta_above">↑ Soglia</th>
+            <th data-col="fatigue_idx">Fatica</th>
+            <th data-col="avg_hr">HR avg</th>
+            <th data-col="avg_cadence">Cad avg</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>`
+    }
+  `;
+  container.appendChild(block);
+  if(!bursts.length)return;
+
+  // Sort headers
+  block.querySelectorAll('thead th[data-col]').forEach(th=>{
+    if(ss.col===th.dataset.col)th.classList.add(ss.dir==='asc'?'sort-asc':'sort-desc');
+    th.addEventListener('click',()=>{
+      const col=th.dataset.col;
+      if(ss.col===col)ss.dir=ss.dir==='asc'?'desc':'asc';
+      else{ss.col=col;ss.dir='desc';}
+      block.querySelectorAll('thead th').forEach(t=>t.classList.remove('sort-asc','sort-desc'));
+      th.classList.add(ss.dir==='asc'?'sort-asc':'sort-desc');
+      fillTbody(block.querySelector('tbody'),bursts,ss,maxPow,color,threshold);
+    });
+  });
+
+  fillTbody(block.querySelector('tbody'),bursts,ss,maxPow,color,threshold);
+}
+
+function fillTbody(tbody,bursts,ss,maxPow,color,threshold){
+  const sorted=[...bursts].sort((a,b)=>{
+    const va=a[ss.col]??0,vb=b[ss.col]??0;
+    return ss.dir==='asc'?(va>vb?1:-1):(va<vb?1:-1);
+  });
+  tbody.innerHTML=sorted.map(b=>{
+    const bar=(b.avg_power/maxPow*100).toFixed(0);
+    const fiC=b.fatigue_idx<0.9?'red':b.fatigue_idx>1.05?'green':'';
+    return`<tr>
+      <td class="dim">${b.rank}</td>
+      <td class="bold">${b.hour}</td>
+      <td style="color:${color};font-weight:600">${b.duration}s</td>
+      <td>
+        ${b.avg_power.toFixed(0)} W
+        <div class="power-bar"><div class="power-bar-fill" style="width:${bar}%;background:${color}"></div></div>
+      </td>
+      <td>${b.max_power} W</td>
+      <td class="dim">${b.min_power} W</td>
+      <td class="green">+${b.delta_above.toFixed(0)} W</td>
+      <td class="${fiC}">${b.fatigue_idx.toFixed(2)}</td>
+      <td class="dim">${b.avg_hr?b.avg_hr+' bpm':'—'}</td>
+      <td class="dim">${b.avg_cadence?b.avg_cadence+' rpm':'—'}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach((tr,ri)=>{
+    tr.addEventListener('click',()=>{
+      // Deselect all rows everywhere
+      document.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('selected-row'));
+      tr.classList.add('selected-row');
+      renderPowerChart(sorted[ri],color);
+    });
+  });
+}
+
+// ── EXPORT ───────────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click',()=>{
+  if(!allResults.length)return;
+  const lines=['Soglia_W;#;Inizio;Durata_s;Avg_W;Max_W;Min_W;Delta_W;Fatica;HR_avg;Cad_avg'];
+  allResults.forEach(({threshold,bursts})=>bursts.forEach(b=>lines.push([threshold,b.rank,b.hour,b.duration,b.avg_power,b.max_power,b.min_power,b.delta_above.toFixed(1),b.fatigue_idx,b.avg_hr??'',b.avg_cadence??''].join(';'))));
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='burst_multi_soglia.csv';a.click();URL.revokeObjectURL(a.href);
+});
+
+// ── FILE INPUT ───────────────────────────────────────────
+document.getElementById('runBtn').addEventListener('click',runAnalysis);
+const fitInput=document.getElementById('fitInput');
+const uploadZone=document.getElementById('uploadZone');
+fitInput.addEventListener('change',()=>{if(fitInput.files[0])loadFit(fitInput.files[0]);});
+uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('drag');});
+uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop',e=>{
+  e.preventDefault();uploadZone.classList.remove('drag');
+  const f=e.dataTransfer.files[0];
+  if(f&&f.name.toLowerCase().endsWith('.fit'))loadFit(f);
+});
+
+let resizeTimer;
+window.addEventListener('resize',()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{if(allResults.length)renderPowerChart();},200);
+});
+</script>
+</body>
+</html>
