@@ -216,7 +216,7 @@
     font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
     color:var(--muted2); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px;
   }
-  #powerTimelineSvg { width:100%; height:300px; display:block; border:1px solid var(--border2); border-radius:6px; background:#0b0d11; }
+  #powerTimelineSvg { width:100%; height:340px; display:block; border:1px solid var(--border2); border-radius:6px; background:#0b0d11; }
   .chart-tooltip {
     position:fixed; z-index:500; pointer-events:none; display:none;
     background:rgba(15,17,22,.97); border:1px solid var(--border2); border-radius:6px;
@@ -587,13 +587,13 @@ function syncConfigViews(){
   const wsGap=document.getElementById('wsMergeGap');
   const homeMinVal=document.getElementById('homeMinDurVal');
   const homeGapVal=document.getElementById('homeMergeGapVal');
-  if(wsThr) wsThr.value=thresholds.map(t=>Math.round(t.watt)).join(',');
+  if(wsThr&&!wsThr.value.trim()) wsThr.value=thresholds.map(t=>Math.round(t.watt)).join(',');
   if(homeMin) homeMin.value=minDur;
   if(homeMinVal) homeMinVal.textContent=minDur;
   if(homeGap) homeGap.value=mergeGap;
   if(homeGapVal) homeGapVal.textContent=mergeGap;
-  if(wsMin) wsMin.value=minDur;
-  if(wsGap) wsGap.value=mergeGap;
+  if(wsMin&&parseInt(wsMin.value)!==parseInt(minDur)) wsMin.value=minDur;
+  if(wsGap&&parseInt(wsGap.value)!==parseInt(mergeGap)) wsGap.value=mergeGap;
 }
 
 function applyConfigFrom(source){
@@ -602,8 +602,15 @@ function applyConfigFrom(source){
   const gapEl=document.getElementById(isHome?'homeMergeGapSlider':'wsMergeGap');
   if(!isHome){
     const thrEl=document.getElementById('wsThrCsv');
-    const newThr=parseThresholdCsv(thrEl?.value);
-    if(newThr.length){ thresholds=newThr.map((watt,i)=>({watt,id:i+1})); nextId=thresholds.length+1; renderThrList(); }
+    const csvValue=thrEl?.value||'';
+    const newThr=parseThresholdCsv(csvValue);
+    if(newThr.length){ 
+      thresholds=newThr.map((watt,i)=>({watt,id:i+1})); 
+      nextId=thresholds.length+1; 
+      renderThrList(); 
+    } else if(csvValue.trim()){
+      document.getElementById('parseMsg').innerHTML='<div class="msg error">⚠ Soglie invalide nel CSV. Usa valori tra 50-2000 W, separati da virgola.</div>';
+    }
   }
   const minDur=Math.max(1,Math.min(120,Math.round(+minEl?.value||4)));
   const gap=Math.max(0,Math.min(30,Math.round(+gapEl?.value||2)));
@@ -647,7 +654,6 @@ function renderThrList(){
       });
     });
   });
-  syncConfigViews();
 }
 
 document.getElementById('addThrBtn').addEventListener('click',()=>{
@@ -809,6 +815,11 @@ async function runAnalysis(){
   }
   selectedBurstKey=null;
   showAnalysisWorkspace();
+  const wsThr=document.getElementById('wsThrCsv');
+  if(wsThr){
+    const csvStr=thresholds.map(t=>Math.round(t.watt)).join(',');
+    wsThr.value=csvStr;
+  }
   renderSummary();
   renderPowerTimeline();
   renderAllTables();
@@ -829,11 +840,18 @@ function setActiveTab(tabId){
   activeTab=tabId;
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tabId));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id===tabId));
+  syncConfigViews();
+  if(tabId==='tab-list'&&allResults.length) setTimeout(()=>renderPowerTimeline(),50);
 }
 
 function showAnalysisWorkspace(){
   document.getElementById('homeShell').style.display='none';
   document.getElementById('resultsArea').style.display='flex';
+  const wsThr=document.getElementById('wsThrCsv');
+  if(wsThr&&!wsThr.value.trim()){
+    const csvStr=thresholds.map(t=>Math.round(t.watt)).join(',');
+    wsThr.value=csvStr;
+  }
 }
 
 function backToUploadFlow(){
@@ -998,9 +1016,11 @@ function renderPowerTimeline(){
   const svgEl=document.getElementById('powerTimelineSvg');
   if(!svgEl||!rawRecords.length) return;
   const tooltip=document.getElementById('chartTooltip');
+  const chartWrap=svgEl.parentElement;
+  const w=chartWrap?Math.max(chartWrap.clientWidth-4,640):640;
+  const h=310;
+  if(w<100) return;
   const svg=d3.select(svgEl);
-  const w=Math.max(svgEl.clientWidth,640);
-  const h=Math.max(svgEl.clientHeight,220);
   svg.attr('width',w).attr('height',h);
   svg.selectAll('*').remove();
 
@@ -1227,7 +1247,12 @@ uploadZoneHome.addEventListener('dragleave',()=>uploadZoneHome.classList.remove(
 uploadZoneHome.addEventListener('drop',e=>{ e.preventDefault();uploadZoneHome.classList.remove('drag'); const f=e.dataTransfer.files[0]; if(f&&f.name.toLowerCase().endsWith('.fit')){ applyConfigFrom('home'); loadFit(f); document.getElementById('homeAnalizzaBtn').disabled=false; } });
 document.getElementById('homeAnalizzaBtn').addEventListener('click',runAnalysis);
 
-document.getElementById('wsRecalcBtn').addEventListener('click',()=>{ applyConfigFrom('ws'); if(!currentFitFile){document.getElementById('parseMsg').innerHTML='<div class="msg error">Nessun FIT corrente da ricalcolare.</div>';return;} runAnalysis(); });
+document.getElementById('wsRecalcBtn').addEventListener('click',()=>{ 
+  if(!currentFitFile){document.getElementById('parseMsg').innerHTML='<div class="msg error">Nessun FIT corrente da ricalcolare.</div>';return;}
+  applyConfigFrom('ws'); 
+  renderThrList();
+  runAnalysis(); 
+});
 document.getElementById('wsLoadAnotherBtn').addEventListener('click',()=>{ applyConfigFrom('ws'); backToUploadFlow(); });
 
 document.getElementById('streamModalCloseBtn').addEventListener('click',closeStreamDialog);
