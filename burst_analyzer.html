@@ -66,7 +66,6 @@
   .upload-label { font-size:12px; color:var(--muted2); }
   .upload-label strong { color:var(--accent); display:block; margin-bottom:3px; font-size:13px; }
 
-  /* ── FIT LOADED BADGE ── */
   .fit-loaded-badge {
     display:none;
     align-items:center; gap:8px;
@@ -156,7 +155,6 @@
 
   .main { padding:20px 24px; display:flex; flex-direction:column; gap:16px; }
 
-  /* ── HOME SHELL ── */
   .home-shell {
     min-height:calc(100vh - 120px);
     display:flex; align-items:center; justify-content:center;
@@ -178,9 +176,7 @@
     padding:7px 8px; font-family:'IBM Plex Mono',monospace; font-size:12px;
   }
   .cfg-row textarea { min-height:58px; resize:vertical; }
-  .cfg-actions { display:flex; gap:8px; flex-wrap:wrap; }
 
-  /* ── SUMMARY CARDS ── */
   .summary-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(175px,1fr)); gap:10px; }
   .summary-card {
     background:var(--panel); border:1px solid var(--border2); border-radius:8px; padding:16px 18px;
@@ -197,7 +193,6 @@
   .sc-val { font-family:'IBM Plex Mono',monospace; font-size:28px; font-weight:700; line-height:1; }
   .sc-sub { font-size:12px; color:var(--muted2); margin-top:7px; line-height:1.6; font-weight:500; }
 
-  /* ── TABS ── */
   .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); padding-bottom:10px; }
   .tab-btn {
     background:var(--panel); color:var(--muted2); border:1px solid var(--border2);
@@ -210,7 +205,6 @@
   .tab-pane { display:none; }
   .tab-pane.active { display:block; }
 
-  /* ── CHART ── */
   .chart-wrap { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px; }
   .chart-title {
     font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
@@ -224,7 +218,6 @@
     line-height:1.7; box-shadow:0 8px 24px rgba(0,0,0,.4);
   }
 
-  /* ── TABLES ── */
   .tables-area { display:flex; flex-direction:column; gap:18px; }
   .thr-table-block { background:var(--panel); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .thr-table-header {
@@ -283,7 +276,6 @@
   }
   .stream-btn:hover { background:rgba(77,166,255,.14); border-color:var(--blue); }
 
-  /* ── STREAM MODAL ── */
   .stream-modal-overlay {
     position:fixed; top:0; left:0; right:0; bottom:0;
     background:rgba(0,0,0,.6); z-index:500;
@@ -314,7 +306,6 @@
   .stream-charts-container { display:block; overflow:hidden; flex:1; min-height:0; }
   #streamUnifiedChart { width:100%; height:100%; border-radius:8px; border:1px solid #e5e7eb; background:white; position:relative; }
 
-  /* ── MESSAGES ── */
   .msg { font-family:'IBM Plex Mono',monospace; font-size:11px; padding:9px 13px; border-radius:5px; margin-top:8px; font-weight:500; }
   .msg.error { background:rgba(224,90,43,.14); color:#f87952; border:1px solid rgba(224,90,43,.3); }
   .msg.info  { background:rgba(77,166,255,.10); color:#6dbfff; border:1px solid rgba(77,166,255,.25); }
@@ -324,7 +315,6 @@
   .processing-state { display:none; }
   .processing-state.active { display:flex; align-items:center; gap:6px; color:var(--muted2); font-size:12px; margin-top:8px; font-weight:500; }
 
-  /* ── SETTINGS TAB ── */
   .settings-box { background:var(--panel); border:1px solid var(--border2); border-radius:8px; padding:16px; margin-top:14px; max-width:720px; }
   .settings-box .cfg-row label { font-size:10px; color:var(--muted2); font-weight:700; letter-spacing:1px; text-transform:uppercase; }
   .settings-box input, .settings-box textarea {
@@ -409,9 +399,8 @@
             <div class="upload-zone" id="uploadZoneHome" style="min-height:160px; display:flex; flex-direction:column; justify-content:center;">
               <input type="file" accept=".fit" id="fitInputHome">
               <div class="upload-icon">⚡</div>
-              <div class="upload-label"><strong>Carica o trascina il file FIT</strong>motore Python + fallback locale</div>
+              <div class="upload-label"><strong>Carica o trascina il file FIT</strong>elaborazione via server Python</div>
             </div>
-            <!-- FIT LOADED BADGE -->
             <div class="fit-loaded-badge" id="fitLoadedBadge">
               <div class="fit-dot"></div>
               <span class="fit-name" id="fitLoadedName">—</span>
@@ -500,59 +489,6 @@
 const PALETTE = ['#f0c040','#4da6ff','#3ccf7e','#e05a2b','#c084fc','#fb7185','#34d399','#fbbf24'];
 const API_BASE = 'http://127.0.0.1:8010';
 
-// ── FIT PARSER ────────────────────────────────────────────
-class FitParser {
-  constructor(buf){ this.buf=new DataView(buf); this.pos=0; this.defs={}; this.records=[]; this.len=this.buf.byteLength; }
-  canRead(n){ return this.pos+n<=this.len; }
-  ensure(n,ctx=''){ if(!this.canRead(n)) throw new Error(`File FIT troncato${ctx?` (${ctx})`:''}`); }
-  u8(){ this.ensure(1,'u8'); return this.buf.getUint8(this.pos++); }
-  u16l(){ this.ensure(2,'u16'); const v=this.buf.getUint16(this.pos,true); this.pos+=2; return v; }
-  u16b(){ this.ensure(2,'u16'); const v=this.buf.getUint16(this.pos,false);this.pos+=2; return v; }
-  u32l(){ this.ensure(4,'u32'); const v=this.buf.getUint32(this.pos,true); this.pos+=4; return v; }
-  baseType(bt){ const m={0x00:[1,false],0x01:[1,true],0x02:[1,false],0x83:[2,true],0x84:[2,false],0x85:[4,true],0x86:[4,false],0x8B:[4,false],0x88:[4,false],0x07:[1,false]}; return m[bt]||[1,false]; }
-  rf(size,signed,le=true){
-    this.ensure(size,`field ${size}B`);
-    if(size===1){const v=this.buf.getUint8(this.pos);this.pos++;return signed?(v>=128?v-256:v):v;}
-    if(size===2){const v=le?this.buf.getUint16(this.pos,true):this.buf.getUint16(this.pos,false);this.pos+=2;return v;}
-    if(size===4){const v=le?this.buf.getUint32(this.pos,true):this.buf.getUint32(this.pos,false);this.pos+=4;return v;}
-    const val=[];for(let i=0;i<size;i++)val.push(this.buf.getUint8(this.pos++));return val;
-  }
-  parse(){
-    const hs=this.u8();this.u8();this.u16l();const ds=this.u32l();
-    const mg=[this.u8(),this.u8(),this.u8(),this.u8()];
-    if(mg[0]!==46||mg[1]!==70||mg[2]!==73||mg[3]!==84) throw new Error('Non è un file FIT valido');
-    if(hs===14)this.u16l();
-    const end=Math.min(this.pos+ds,this.len);
-    while(this.pos<end){
-      if(this.pos+1>end) break;
-      const hdr=this.u8();
-      if(hdr&0x80){const ln=(hdr>>5)&0x03;const def=this.defs[ln];if(def)this.readRec(def,end);else break;continue;}
-      const mt=(hdr>>6)&0x03;const ln=hdr&0x0F;
-      if(mt===1||mt===3){
-        if(this.pos+5>end) break;
-        const hasDev=(mt===3);this.u8();const arch=this.u8();
-        const gmn=arch===0?this.u16l():this.u16b();const fc=this.u8();
-        if(this.pos+fc*3>end) break;
-        const fields=[];
-        for(let i=0;i<fc;i++){const fd=this.u8();const fs=this.u8();const bt=this.u8();fields.push({def:fd,size:fs,base:bt});}
-        if(hasDev){if(this.pos+1>end)break;const dc=this.u8();if(this.pos+dc*3>end)break;for(let i=0;i<dc;i++){this.u8();this.u8();this.u8();}}
-        this.defs[ln]={gmn,arch,fields};
-      }else if(mt===0){const def=this.defs[ln];if(def)this.readRec(def,end);}
-    }
-    return this.records;
-  }
-  readRec(def,endLimit=this.len){
-    const need=def.fields.reduce((a,f)=>a+f.size,0);
-    if(this.pos+need>endLimit||!this.canRead(need)){this.pos=Math.min(endLimit,this.len);return;}
-    const le=def.arch===0;const vals={};
-    for(const f of def.fields){const[sz,sg]=this.baseType(f.base);const rp=f.size/sz;if(rp>1){const arr=[];for(let r=0;r<rp;r++)arr.push(this.rf(sz,sg,le));vals[f.def]=arr;}else vals[f.def]=this.rf(sz,sg,le);}
-    if(def.gmn===20){
-      const gf=(n,sc=1,off=0)=>{const raw=vals[n];if(raw===undefined||raw===0xFFFF||raw===0xFFFFFFFF||raw===0xFF)return null;return raw/sc+off;};
-      this.records.push({timestamp:vals[253]!==undefined?vals[253]+631065600:null,power:gf(7),heartrate:gf(3),cadence:gf(4),distance:gf(5,100),altitude:gf(2,5,-500)});
-    }
-  }
-}
-
 // ── STATE ─────────────────────────────────────────────────
 let rawRecords = [];
 let thresholds = [{watt:300,id:1},{watt:350,id:2},{watt:400,id:3}];
@@ -570,7 +506,6 @@ let powerZoomTransform = d3.zoomIdentity;
 const fmtTime = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.round(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`:String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); };
 const fmtDur  = s => { const m=Math.floor(s/60),r=Math.round(s%60); return m>0?`${m}m ${r}s`:`${r}s`; };
 const fmtMmSs = s => { const m=Math.floor(s/60),r=Math.round(s%60); return `${m}:${String(r).padStart(2,'0')}`; };
-const avg     = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
 
 function parseThresholdCsv(text){
   const vals=String(text||'').split(',').map(s=>Math.round(+s.trim())).filter(v=>Number.isFinite(v)&&v>=50&&v<=2000);
@@ -710,29 +645,10 @@ function showFitBadge(filename){
 
 function loadFit(file){
   currentFitFile=file;
-  const msg=document.getElementById('parseMsg');
-  msg.innerHTML='';
+  document.getElementById('parseMsg').innerHTML='';
   document.getElementById('runBtn').disabled=false;
   document.getElementById('exportBtn').disabled=true;
   showFitBadge(file.name);
-}
-
-function parseFitClient(file){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      try{
-        const parser=new FitParser(e.target.result);
-        const recs=parser.parse().filter(r=>r.power!==null&&r.power!==undefined);
-        if(!recs.length){reject(new Error('Nessun dato di potenza trovato.'));return;}
-        const t0=recs[0].timestamp||0;
-        recs.forEach((r,i)=>r.time_sec=r.timestamp?r.timestamp-t0:i);
-        resolve(recs);
-      }catch(err){ reject(err); }
-    };
-    reader.onerror=()=>reject(new Error('Errore lettura file'));
-    reader.readAsArrayBuffer(file);
-  });
 }
 
 async function analyzeViaServer(file,minDur,mergeGap){
@@ -747,39 +663,9 @@ async function analyzeViaServer(file,minDur,mergeGap){
   return rsp.json();
 }
 
-// ── BURST DETECTION ───────────────────────────────────────
-function detectBursts(records,threshold,minDur,mergeGap){
-  const segs=[];let inB=false,bs=null;
-  for(let i=0;i<records.length;i++){
-    if(records[i].power>=threshold&&!inB){inB=true;bs=i;}
-    else if(records[i].power<threshold&&inB){inB=false;segs.push({s:bs,e:i-1});}
-  }
-  if(inB)segs.push({s:bs,e:records.length-1});
-  const merged=[];
-  for(const seg of segs){
-    if(!merged.length){merged.push({...seg});continue;}
-    const last=merged[merged.length-1];
-    if(records[seg.s].time_sec-records[last.e].time_sec<=mergeGap)last.e=seg.e;
-    else merged.push({...seg});
-  }
-  return merged
-    .filter(({s,e})=>(records[e].time_sec-records[s].time_sec)>=minDur)
-    .map(({s,e},idx)=>{
-      const slice=records.slice(s,e+1);
-      const pows=slice.map(r=>r.power);
-      const ap=avg(pows);
-      const half=Math.floor(pows.length/2);
-      const f1=half?avg(pows.slice(0,half)):ap;
-      const f2=pows.slice(half).length?avg(pows.slice(half)):ap;
-      const hrs=slice.map(r=>r.heartrate).filter(h=>h&&h>0);
-      const cads=slice.map(r=>r.cadence).filter(c=>c&&c>0);
-      return{rank:idx+1,seg_start:s,seg_end:e,start_time:records[s].time_sec,end_time:records[e].time_sec,duration:+(records[e].time_sec-records[s].time_sec).toFixed(1),avg_power:+ap.toFixed(1),max_power:Math.max(...pows),min_power:Math.min(...pows),delta_above:+(ap-threshold).toFixed(1),fatigue_idx:f1>0?+(f2/f1).toFixed(3):1,avg_hr:hrs.length?+avg(hrs).toFixed(0):null,avg_cadence:cads.length?+avg(cads).toFixed(0):null,hour:fmtTime(records[s].time_sec)};
-    });
-}
-
 // ── RUN ───────────────────────────────────────────────────
 async function runAnalysis(){
-  if(!currentFitFile&&!rawRecords.length) return;
+  if(!currentFitFile) return;
   const msg=document.getElementById('parseMsg');
   const minDur=+document.getElementById('minDurSlider').value;
   const mergeGap=+document.getElementById('mergeGapSlider').value;
@@ -793,38 +679,27 @@ async function runAnalysis(){
   document.getElementById('exportBtn').disabled=true;
 
   try{
-    if(!currentFitFile) throw new Error('Nessun file caricato');
     const serverData=await analyzeViaServer(currentFitFile,minDur,mergeGap);
-    rawRecords=(serverData.records||[]);
+    rawRecords=serverData.records||[];
     allResults=(serverData.allResults||[]).map(r=>({threshold:+r.threshold,color:r.color,bursts:r.bursts||[]}));
     if(!rawRecords.length) throw new Error('Nessun dato di potenza trovato.');
-    const fileName=serverData?.stats?.fileName||currentFitFile.name;
-    msg.innerHTML=`<div class="msg info">✓ ${rawRecords.length} record · ${fmtTime(rawRecords[rawRecords.length-1].time_sec)} · core Python</div>`;
-  }catch(serverErr){
-    try{
-      if(!currentFitFile) throw serverErr;
-      rawRecords=await parseFitClient(currentFitFile);
-      allResults=thresholds.slice().sort((a,b)=>a.watt-b.watt).map(thr=>({threshold:thr.watt,color:thr.color,bursts:detectBursts(rawRecords,thr.watt,minDur,mergeGap)}));
-      msg.innerHTML=`<div class="msg info">✓ ${rawRecords.length} record · ${fmtTime(rawRecords[rawRecords.length-1].time_sec)} · fallback locale (${serverErr.message})</div>`;
-    }catch(err){
-      msg.innerHTML=`<div class="msg error">Errore: ${err.message}</div>`;
-      document.getElementById('processingState').classList.remove('active');
-      document.getElementById('runBtn').disabled=!currentFitFile;
-      return;
-    }
+    msg.innerHTML=`<div class="msg info">✓ ${rawRecords.length} record · ${fmtTime(rawRecords[rawRecords.length-1].time_sec)}</div>`;
+  }catch(err){
+    msg.innerHTML=`<div class="msg error">⚠ Errore: ${err.message}</div>`;
+    document.getElementById('processingState').classList.remove('active');
+    document.getElementById('runBtn').disabled=false;
+    return;
   }
+
   selectedBurstKey=null;
   showAnalysisWorkspace();
   const wsThr=document.getElementById('wsThrCsv');
-  if(wsThr){
-    const csvStr=thresholds.map(t=>Math.round(t.watt)).join(',');
-    wsThr.value=csvStr;
-  }
+  if(wsThr) wsThr.value=thresholds.map(t=>Math.round(t.watt)).join(',');
   renderSummary();
   renderPowerTimeline();
   renderAllTables();
   document.getElementById('processingState').classList.remove('active');
-  document.getElementById('runBtn').disabled=!currentFitFile;
+  document.getElementById('runBtn').disabled=false;
   document.getElementById('exportBtn').disabled=false;
 }
 
@@ -848,10 +723,7 @@ function showAnalysisWorkspace(){
   document.getElementById('homeShell').style.display='none';
   document.getElementById('resultsArea').style.display='flex';
   const wsThr=document.getElementById('wsThrCsv');
-  if(wsThr&&!wsThr.value.trim()){
-    const csvStr=thresholds.map(t=>Math.round(t.watt)).join(',');
-    wsThr.value=csvStr;
-  }
+  if(wsThr&&!wsThr.value.trim()) wsThr.value=thresholds.map(t=>Math.round(t.watt)).join(',');
 }
 
 function backToUploadFlow(){
