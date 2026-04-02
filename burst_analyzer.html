@@ -204,7 +204,11 @@
   .threshold-btn.active { color:var(--accent); border-color:var(--accent); background:rgba(240,192,64,.08); }
 
   .duration-grid-container { background:var(--panel); border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
-  .duration-grid-header { padding:14px 20px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.03); }
+  .duration-grid-header { padding:14px 20px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.03); display:flex; justify-content:space-between; align-items:center; }
+  .duration-grid-collapse-btn { background:transparent; border:1px solid var(--border2); color:var(--muted2); border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer; transition:color .2s, border-color .2s; }
+  .duration-grid-collapse-btn:hover { color:var(--text); border-color:var(--border); }
+  .duration-grid-body { max-height:none; overflow:visible; transition:max-height .3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .duration-grid-body.collapsed { max-height:0; overflow:hidden; }
   .duration-grid-title { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:var(--text); }
   .duration-grid-content { display:grid; grid-template-columns:repeat(auto-fill,minmax(70px,1fr)); gap:8px; padding:14px 20px; }
   .duration-cell {
@@ -853,7 +857,9 @@ function renderDurationGridForThreshold(res, tablesArea){
   const avgHrSoglia=bursts.length?bursts.filter(b=>b.avg_hr).length>0?(bursts.reduce((a,b)=>a+(b.avg_hr||0),0)/bursts.filter(b=>b.avg_hr).length).toFixed(0):'-':'-';
   const avgCadSoglia=bursts.length?bursts.filter(b=>b.avg_cadence).length>0?(bursts.reduce((a,b)=>a+(b.avg_cadence||0),0)/bursts.filter(b=>b.avg_cadence).length).toFixed(0):'-':'-';
   
-  header.innerHTML=`
+  const headerContent=document.createElement('div');
+  headerContent.style.flex='1';
+  headerContent.innerHTML=`
     <div class="duration-grid-title" style="color:${color}">Burst per Durata Esatta — ≥${Math.round(threshold)}W</div>
     <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted2); margin-top:8px; display:flex; gap:20px; flex-wrap:wrap;">
       <span>Totali: <strong style="color:${color}">${bursts.length}</strong></span>
@@ -862,10 +868,22 @@ function renderDurationGridForThreshold(res, tablesArea){
       <span>Avg Cad: <strong>${avgCadSoglia} rpm</strong></span>
     </div>
   `;
+  header.appendChild(headerContent);
+  
+  const collapseBtn=document.createElement('button');
+  collapseBtn.className='duration-grid-collapse-btn';
+  collapseBtn.textContent='−';
+  let isCollapsed=false;
+  collapseBtn.addEventListener('click',()=>{
+    isCollapsed=!isCollapsed;
+    body.classList.toggle('collapsed');
+    collapseBtn.textContent=isCollapsed?'+':'−';
+  });
+  header.appendChild(collapseBtn);
   container.appendChild(header);
 
-  const gridContent=document.createElement('div');
-  gridContent.className='duration-grid-content';
+  const body=document.createElement('div');
+  body.className='duration-grid-body duration-grid-content';
 
   // Ordina le durate e FILTRA per minDur
   const sortedDurations=Object.keys(duration_counts)
@@ -877,7 +895,7 @@ function renderDurationGridForThreshold(res, tablesArea){
     const noData=document.createElement('div');
     noData.style.cssText='padding:20px;text-align:center;color:var(--muted2);font-family:"IBM Plex Mono",monospace;font-size:12px;';
     noData.textContent=`Nessun burst ≥${currentMinDur}s trovato per questa soglia.`;
-    gridContent.appendChild(noData);
+    body.appendChild(noData);
   }else{
     sortedDurations.forEach(dur=>{
       const count=duration_counts[dur];
@@ -888,6 +906,15 @@ function renderDurationGridForThreshold(res, tablesArea){
       const avgHrDur=burstsForThisDur.filter(b=>b.avg_hr).length>0?(burstsForThisDur.reduce((a,b)=>a+(b.avg_hr||0),0)/burstsForThisDur.filter(b=>b.avg_hr).length).toFixed(0):'-';
       const avgCadDur=burstsForThisDur.filter(b=>b.avg_cadence).length>0?(burstsForThisDur.reduce((a,b)=>a+(b.avg_cadence||0),0)/burstsForThisDur.filter(b=>b.avg_cadence).length).toFixed(0):'-';
       
+      // Calcola durata totale dei burst ESATTI di questa durata
+      const totalDurExact=burstsForThisDur.reduce((a,b)=>a+b.duration,0);
+      const totalDurExactFmt=fmtTime(totalDurExact);
+      
+      // Calcola numero cumulativo di burst >= questa durata e durata totale cumulativa
+      const cumulativeBursts=bursts.filter(b=>Math.round(b.duration)>=dur).length;
+      const cumulativeDuration=bursts.filter(b=>Math.round(b.duration)>=dur).reduce((a,b)=>a+b.duration,0);
+      const cumulativeDurationFmt=fmtTime(cumulativeDuration);
+      
       const cell=document.createElement('div');
       cell.className='duration-cell';
       cell.style.cursor='pointer';
@@ -895,9 +922,15 @@ function renderDurationGridForThreshold(res, tablesArea){
         <div class="duration-label" style="color:${color};font-size:14px;font-weight:700">${dur}s</div>
         <div class="duration-count" style="color:${color};font-size:18px;font-weight:700;margin:4px 0">${count}</div>
         <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; margin-top:8px; border-top:1px solid var(--border2); padding-top:6px; line-height:1.6;">
+          <div><span style="color:${color};font-weight:600">${totalDurExactFmt}</span></div>
+          <div style="border-bottom:1px solid var(--border2); padding-bottom:6px; margin-bottom:6px;"></div>
           <div><span style="color:#c084fc;font-weight:600">${avgPowDur}</span><span style="color:#c084fc;font-size:10px;font-weight:600">W</span></div>
           <div><span style="color:#ef4444;font-weight:600">${avgHrDur}</span><span style="color:#ef4444;font-size:10px;font-weight:600">bpm</span></div>
           <div><span style="color:#4da6ff;font-weight:600">${avgCadDur}</span><span style="color:#4da6ff;font-size:10px;font-weight:600">rpm</span></div>
+          <div style="border-top:1px solid var(--border2); padding-top:6px; margin-top:6px; font-size:10px; color:var(--muted2);">
+            <div>≥ <span style="color:${color};font-weight:600">${cumulativeBursts}</span></div>
+            <div>t: <span style="color:${color};font-weight:600">${cumulativeDurationFmt}</span></div>
+          </div>
         </div>
       `;
       
@@ -919,11 +952,11 @@ function renderDurationGridForThreshold(res, tablesArea){
         selectedDuration=dur;
         renderBurstsForDuration(dur,res,color,container);
       });
-      gridContent.appendChild(cell);
+      body.appendChild(cell);
     });
   }
 
-  container.appendChild(gridContent);
+  container.appendChild(body);
   
   // Crea lo spazio per i dettagli dell'espansione
   const detailsArea=document.createElement('div');
@@ -1036,6 +1069,9 @@ function renderBurstsForDuration(duration,res,color,container){
 
   detailsArea.appendChild(content);
   detailsArea.classList.add('open');
+  
+  // Aggiorna il grafico per mostrare solo i burst di questa durata
+  renderPowerTimeline();
 }
 
 // ── TABLES (OLD - NON USATO) ──────────────────────────────
@@ -1099,6 +1135,12 @@ function renderPowerTimeline(){
         const key=burstKey(threshold,b);
         const isSelected=selectedBurstKey===key;
         const isStrongest=strongestKey===key;
+        
+        // Se una lista di burst è aperta (selectedDuration !== null), mostra solo quelli di quella durata e soglia
+        if(selectedDuration!==null && (selectedThreshold!==threshold || Math.round(b.duration)!==selectedDuration)){
+          return; // Salta questo burst
+        }
+        
         const x0=zx(b.start_time);
         const w0=Math.max(1,zx(b.end_time)-zx(b.start_time));
         burstLayer.append('rect').attr('x',x0).attr('y',0).attr('width',w0).attr('height',iH).attr('fill',color).attr('opacity',isSelected?0.8:(isStrongest?0.38:0.26));
