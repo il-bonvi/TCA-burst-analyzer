@@ -193,6 +193,59 @@
   .sc-val { font-family:'IBM Plex Mono',monospace; font-size:28px; font-weight:700; line-height:1; }
   .sc-sub { font-size:12px; color:var(--muted2); margin-top:7px; line-height:1.6; font-weight:500; }
 
+  .threshold-selector { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .threshold-btn {
+    background:transparent; border:1px solid var(--border2); color:var(--muted2);
+    border-radius:6px; padding:8px 14px; cursor:pointer;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+    transition: color .2s, border-color .2s, background .2s;
+  }
+  .threshold-btn:hover { color:var(--text); border-color:var(--border); }
+  .threshold-btn.active { color:var(--accent); border-color:var(--accent); background:rgba(240,192,64,.08); }
+
+  .duration-grid-container { background:var(--panel); border:1px solid var(--border2); border-radius:8px; overflow:hidden; }
+  .duration-grid-header { padding:14px 20px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.03); }
+  .duration-grid-title { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:var(--text); }
+  .duration-grid-content { display:grid; grid-template-columns:repeat(auto-fill,minmax(70px,1fr)); gap:8px; padding:14px 20px; }
+  .duration-cell {
+    background:var(--bg); border:1px solid var(--border2); border-radius:6px; padding:12px 8px;
+    text-align:center; cursor:pointer; transition: border-color .2s, background .2s;
+  }
+  .duration-cell:hover { border-color:var(--accent); background:rgba(240,192,64,.08); }
+  .duration-cell.active { border-color:var(--accent); background:rgba(240,192,64,.15); }
+  .duration-label { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:700; color:var(--accent); }
+  .duration-count { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted2); margin-top:4px; }
+
+  .burst-details-area {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .burst-details-area.open {
+    max-height: 3000px;
+  }
+
+  .burst-list-for-duration { background:var(--panel); border:1px solid var(--border2); border-radius:8px; overflow:hidden; margin-top:16px; }
+  .burst-list-header { padding:14px 20px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.03); border-left:4px solid; }
+  .burst-list-title { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:var(--text); }
+  .burst-list-content { overflow-x:auto; }
+  .burst-list-content table { width:100%; border-collapse:collapse; }
+  .burst-list-content thead tr { background:rgba(255,255,255,.03); }
+  .burst-list-content thead th {
+    font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
+    color:var(--muted2); letter-spacing:1px; text-transform:uppercase;
+    padding:10px 16px; text-align:left; border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  .burst-list-content tbody tr { border-bottom:1px solid var(--border); }
+  .burst-list-content tbody tr:hover { background:rgba(255,255,255,.04); }
+  .burst-list-content td {
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text);
+    padding:10px 16px; white-space:nowrap;
+  }
+  .burst-list-content td.dim { color:var(--muted2); font-size:11px; }
+  .burst-list-content td.bold { font-weight:700; color:#fff; }
+
   .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); padding-bottom:10px; }
   .tab-btn {
     background:var(--panel); color:var(--muted2); border:1px solid var(--border2);
@@ -369,8 +422,8 @@
         <input type="range" id="minDurSlider" min="1" max="60" step="1" value="4">
       </div>
       <div class="ctrl-group">
-        <div class="ctrl-label">Gap Merge (s) <span class="val" id="mergeGapVal">2</span></div>
-        <input type="range" id="mergeGapSlider" min="0" max="15" step="1" value="2">
+        <div class="ctrl-label">Gap Merge (s) <span class="val" id="mergeGapVal">1</span></div>
+        <input type="range" id="mergeGapSlider" min="0" max="15" step="1" value="1">
         <div style="font-size:10px; color:var(--muted2); margin-top:5px; font-family:'IBM Plex Mono'; line-height:1.5;">unisce burst separati da ≤ N secondi</div>
       </div>
     </div>
@@ -418,8 +471,8 @@
               <input type="range" id="homeMinDurSlider" min="1" max="60" step="1" value="4">
             </div>
             <div class="ctrl-group">
-              <div class="ctrl-label">Gap Merge (s) <span class="val" id="homeMergeGapVal">2</span></div>
-              <input type="range" id="homeMergeGapSlider" min="0" max="15" step="1" value="2">
+              <div class="ctrl-label">Gap Merge (s) <span class="val" id="homeMergeGapVal">1</span></div>
+              <input type="range" id="homeMergeGapSlider" min="0" max="15" step="1" value="1">
             </div>
 
             <div style="display:flex; gap:8px; margin-top:10px;">
@@ -460,7 +513,7 @@
           </div>
           <div class="cfg-row">
             <label for="wsMergeGap">Gap merge (s)</label>
-            <input id="wsMergeGap" type="number" min="0" max="30" step="1" value="2">
+            <input id="wsMergeGap" type="number" min="0" max="30" step="1" value="1">
           </div>
           <div style="display:flex; gap:8px; margin-top:12px;">
             <button class="run-btn" id="wsRecalcBtn" style="width:auto; padding:9px 14px;">↻ Ricalcola Stesso FIT</button>
@@ -506,6 +559,7 @@ let powerZoomTransform = d3.zoomIdentity;
 const fmtTime = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.round(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`:String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); };
 const fmtDur  = s => { const m=Math.floor(s/60),r=Math.round(s%60); return m>0?`${m}m ${r}s`:`${r}s`; };
 const fmtMmSs = s => { const m=Math.floor(s/60),r=Math.round(s%60); return `${m}:${String(r).padStart(2,'0')}`; };
+const hexToRgb = (hex) => { const result=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); return result ? `${parseInt(result[1],16)},${parseInt(result[2],16)},${parseInt(result[3],16)}` : '0,0,0'; };
 
 function parseThresholdCsv(text){
   const vals=String(text||'').split(',').map(s=>Math.round(+s.trim())).filter(v=>Number.isFinite(v)&&v>=50&&v<=2000);
@@ -669,6 +723,7 @@ async function runAnalysis(){
   const msg=document.getElementById('parseMsg');
   const minDur=+document.getElementById('minDurSlider').value;
   const mergeGap=+document.getElementById('mergeGapSlider').value;
+  currentMinDur = minDur;  // Salva per usarlo successivamente
   document.querySelectorAll('.thr-input').forEach(inp=>{
     const t=thresholds.find(t=>t.id===+inp.dataset.id);
     if(t) t.watt=Math.max(50,+inp.value||t.watt);
@@ -681,7 +736,7 @@ async function runAnalysis(){
   try{
     const serverData=await analyzeViaServer(currentFitFile,minDur,mergeGap);
     rawRecords=serverData.records||[];
-    allResults=(serverData.allResults||[]).map(r=>({threshold:+r.threshold,color:r.color,bursts:r.bursts||[]}));
+    allResults=(serverData.allResults||[]).map(r=>({threshold:+r.threshold,color:r.color,bursts:r.bursts||[],duration_counts:r.duration_counts||{}}));
     if(!rawRecords.length) throw new Error('Nessun dato di potenza trovato.');
     msg.innerHTML=`<div class="msg info">✓ ${rawRecords.length} record · ${fmtTime(rawRecords[rawRecords.length-1].time_sec)}</div>`;
   }catch(err){
@@ -692,12 +747,13 @@ async function runAnalysis(){
   }
 
   selectedBurstKey=null;
+  selectedThreshold=null;
+  selectedDuration=null;
   showAnalysisWorkspace();
   const wsThr=document.getElementById('wsThrCsv');
   if(wsThr) wsThr.value=thresholds.map(t=>Math.round(t.watt)).join(',');
   renderSummary();
   renderPowerTimeline();
-  renderAllTables();
   document.getElementById('processingState').classList.remove('active');
   document.getElementById('runBtn').disabled=false;
   document.getElementById('exportBtn').disabled=false;
@@ -739,149 +795,260 @@ function backToUploadFlow(){
 }
 
 // ── SUMMARY ───────────────────────────────────────────────
+let selectedThreshold = null;
+let selectedDuration = null;
+let currentMinDur = 4;  // Durata minima per filtrare burst
+
 function renderSummary(){
-  const actDur=rawRecords[rawRecords.length-1].time_sec;
-  document.getElementById('summaryRow').innerHTML=allResults.map(({threshold,color,bursts})=>{
+  const summaryRow=document.getElementById('summaryRow');
+  summaryRow.innerHTML='';
+  
+  // Mostra un sommario compatto delle soglie
+  const summary=document.createElement('div');
+  summary.style.cssText='margin-bottom:16px;';
+  summary.innerHTML=allResults.map(({threshold,color,bursts})=>{
     const n=bursts.length;
-    const totT=bursts.reduce((a,b)=>a+b.duration,0);
-    const sub=n?`${fmtDur(totT)} · ${(totT/actDur*100).toFixed(1)}% ride`:'nessun burst';
-    return`<div class="summary-card">
-      <div class="top-bar" style="background:${color}"></div>
-      <div class="sc-label">≥ ${threshold} W</div>
-      <div class="sc-val" style="color:${color}">${n}</div>
-      <div class="sc-sub">${sub}</div>
+    return `<div style="display:inline-block; margin-right:20px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted2);">
+      <span style="color:${color};font-weight:700;">≥ ${Math.round(threshold)}W</span> — ${n} burst totali
     </div>`;
   }).join('');
+  summaryRow.appendChild(summary);
+
+  // Mostra tutte le griglie delle soglie, una sotto l'altra
+  renderAllThresholdGrids();
 }
 
-// ── TABLES ────────────────────────────────────────────────
+function renderAllThresholdGrids(){
+  const tablesArea=document.getElementById('tablesArea');
+  tablesArea.innerHTML='';
+  
+  allResults.forEach(res=>{
+    renderDurationGridForThreshold(res, tablesArea);
+  });
+}
+
+function renderDurationGridForThreshold(res, tablesArea){
+  const threshold = res.threshold;
+  const color = res.color;
+  let {bursts,duration_counts}=res;
+  
+  // Fallback: se duration_counts non esiste, calcolalo dai burst
+  if(!duration_counts || typeof duration_counts !== 'object' || Object.keys(duration_counts).length === 0){
+    duration_counts={};
+    bursts.forEach(b=>{
+      const dur=Math.round(b.duration);
+      duration_counts[dur]=(duration_counts[dur]||0)+1;
+    });
+  }
+
+  // Crea il container per questa soglia
+  const container=document.createElement('div');
+  container.className='duration-grid-container';
+
+  const header=document.createElement('div');
+  header.className='duration-grid-header';
+  
+  // Calcola recap per questa soglia
+  const avgPowSoglia=bursts.length?(bursts.reduce((a,b)=>a+b.avg_power,0)/bursts.length).toFixed(0):'-';
+  const avgHrSoglia=bursts.length?bursts.filter(b=>b.avg_hr).length>0?(bursts.reduce((a,b)=>a+(b.avg_hr||0),0)/bursts.filter(b=>b.avg_hr).length).toFixed(0):'-':'-';
+  const avgCadSoglia=bursts.length?bursts.filter(b=>b.avg_cadence).length>0?(bursts.reduce((a,b)=>a+(b.avg_cadence||0),0)/bursts.filter(b=>b.avg_cadence).length).toFixed(0):'-':'-';
+  
+  header.innerHTML=`
+    <div class="duration-grid-title" style="color:${color}">Burst per Durata Esatta — ≥${Math.round(threshold)}W</div>
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted2); margin-top:8px; display:flex; gap:20px; flex-wrap:wrap;">
+      <span>Totali: <strong style="color:${color}">${bursts.length}</strong></span>
+      <span>Avg Power: <strong>${avgPowSoglia}W</strong></span>
+      <span>Avg HR: <strong>${avgHrSoglia} bpm</strong></span>
+      <span>Avg Cad: <strong>${avgCadSoglia} rpm</strong></span>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const gridContent=document.createElement('div');
+  gridContent.className='duration-grid-content';
+
+  // Ordina le durate e FILTRA per minDur
+  const sortedDurations=Object.keys(duration_counts)
+    .map(d=>parseInt(d))
+    .filter(d=>d>=currentMinDur)
+    .sort((a,b)=>a-b);
+
+  if(sortedDurations.length === 0){
+    const noData=document.createElement('div');
+    noData.style.cssText='padding:20px;text-align:center;color:var(--muted2);font-family:"IBM Plex Mono",monospace;font-size:12px;';
+    noData.textContent=`Nessun burst ≥${currentMinDur}s trovato per questa soglia.`;
+    gridContent.appendChild(noData);
+  }else{
+    sortedDurations.forEach(dur=>{
+      const count=duration_counts[dur];
+      
+      // Calcola metriche per questa durata
+      const burstsForThisDur=bursts.filter(b=>Math.round(b.duration)===dur);
+      const avgPowDur=burstsForThisDur.length?(burstsForThisDur.reduce((a,b)=>a+b.avg_power,0)/burstsForThisDur.length).toFixed(0):'-';
+      const avgHrDur=burstsForThisDur.filter(b=>b.avg_hr).length>0?(burstsForThisDur.reduce((a,b)=>a+(b.avg_hr||0),0)/burstsForThisDur.filter(b=>b.avg_hr).length).toFixed(0):'-';
+      const avgCadDur=burstsForThisDur.filter(b=>b.avg_cadence).length>0?(burstsForThisDur.reduce((a,b)=>a+(b.avg_cadence||0),0)/burstsForThisDur.filter(b=>b.avg_cadence).length).toFixed(0):'-';
+      
+      const cell=document.createElement('div');
+      cell.className='duration-cell';
+      cell.style.cursor='pointer';
+      cell.innerHTML=`
+        <div class="duration-label" style="color:${color};font-size:14px;font-weight:700">${dur}s</div>
+        <div class="duration-count" style="color:${color};font-size:18px;font-weight:700;margin:4px 0">${count}</div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; margin-top:8px; border-top:1px solid var(--border2); padding-top:6px; line-height:1.6;">
+          <div><span style="color:#c084fc;font-weight:600">${avgPowDur}</span><span style="color:#c084fc;font-size:10px;font-weight:600">W</span></div>
+          <div><span style="color:#ef4444;font-weight:600">${avgHrDur}</span><span style="color:#ef4444;font-size:10px;font-weight:600">bpm</span></div>
+          <div><span style="color:#4da6ff;font-weight:600">${avgCadDur}</span><span style="color:#4da6ff;font-size:10px;font-weight:600">rpm</span></div>
+        </div>
+      `;
+      
+      // Click mostra i dettagli DENTRO la card
+      cell.addEventListener('click',()=>{
+        selectedThreshold=threshold;
+        // Se clicchi la stessa durata, toggle (chiudi). Se diversa, cambia i dettagli
+        if(selectedDuration===dur){
+          // Stessa durata cliccata due volte: chiudi il toggle
+          const detailsArea=container.querySelector('.burst-details-area');
+          if(detailsArea.classList.contains('open')){
+            detailsArea.classList.remove('open');
+            selectedDuration=null;
+            selectedBurstKey=null;
+            renderPowerTimeline();
+            return;
+          }
+        }
+        selectedDuration=dur;
+        renderBurstsForDuration(dur,res,color,container);
+      });
+      gridContent.appendChild(cell);
+    });
+  }
+
+  container.appendChild(gridContent);
+  
+  // Crea lo spazio per i dettagli dell'espansione
+  const detailsArea=document.createElement('div');
+  detailsArea.className='burst-details-area';
+  container.appendChild(detailsArea);
+  
+  tablesArea.appendChild(container);
+}
+
+function renderBurstsForDuration(duration,res,color,container){
+  if(!selectedThreshold) return;
+  
+  // Trova l'area dei dettagli dentro il container
+  const detailsArea=container.querySelector('.burst-details-area');
+  
+  // Pulisci la lista precedente
+  detailsArea.innerHTML='';
+  
+  // Filtra i burst di questa durata
+  const burstsForDur=res.bursts.filter(b=>Math.round(b.duration)===duration);
+  
+  if(!burstsForDur.length) return;
+
+  // Calcola metriche per questa durata
+  const avgPowDur=burstsForDur.length?(burstsForDur.reduce((a,b)=>a+b.avg_power,0)/burstsForDur.length).toFixed(0):'-';
+  const avgHrDur=burstsForDur.filter(b=>b.avg_hr).length>0?(burstsForDur.reduce((a,b)=>a+(b.avg_hr||0),0)/burstsForDur.filter(b=>b.avg_hr).length).toFixed(0):'-';
+  const avgCadDur=burstsForDur.filter(b=>b.avg_cadence).length>0?(burstsForDur.reduce((a,b)=>a+(b.avg_cadence||0),0)/burstsForDur.filter(b=>b.avg_cadence).length).toFixed(0):'-';
+
+  const header=document.createElement('div');
+  header.className='burst-list-header';
+  header.style.borderLeftColor=color;
+  header.innerHTML=`
+    <div class="burst-list-title">Burst di ${duration}s (${burstsForDur.length} totali)</div>
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted2); margin-top:8px; display:flex; gap:20px; flex-wrap:wrap;">
+      <span>Avg Power: <strong>${avgPowDur}W</strong></span>
+      <span>Avg HR: <strong>${avgHrDur} bpm</strong></span>
+      <span>Avg Cad: <strong>${avgCadDur} rpm</strong></span>
+    </div>
+  `;
+  detailsArea.appendChild(header);
+
+  const content=document.createElement('div');
+  content.className='burst-list-content';
+  const tableHtml=`
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th>Inizio</th>
+        <th>Durata (s)</th>
+        <th>Avg W</th>
+        <th>HR avg</th>
+        <th>Cad avg</th>
+        <th>Max W</th>
+        <th>Min W</th>
+        <th>↑ Soglia</th>
+        <th>Stream</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  content.innerHTML=tableHtml;
+  const tbody=content.querySelector('tbody');
+
+  burstsForDur.forEach(b=>{
+    const tr=document.createElement('tr');
+    const hour=(b.hour&&b.hour!=='undefined')?b.hour:fmtTime(b.start_time||0);
+    tr.innerHTML=`
+      <td class="dim">${b.rank}</td>
+      <td class="bold">${hour}</td>
+      <td style="color:${color};font-weight:700">${b.duration}s</td>
+      <td style="color:#c084fc;font-weight:600">${b.avg_power.toFixed(0)} W</td>
+      <td style="color:#ef4444;font-weight:600">${b.avg_hr?b.avg_hr+' bpm':'—'}</td>
+      <td style="color:#4da6ff;font-weight:600">${b.avg_cadence?b.avg_cadence+' rpm':'—'}</td>
+      <td style="color:#9555cc;font-weight:600">${b.max_power} W</td>
+      <td style="color:#d9a8ff;font-weight:600">${b.min_power} W</td>
+      <td class="green">+${b.delta_above.toFixed(0)} W</td>
+      <td><button class="stream-btn" data-key="${burstKey(selectedThreshold,b)}">stream</button></td>
+    `;
+    
+    // Click sulla riga per selezionare il burst
+    const key=burstKey(selectedThreshold,b);
+    tr.addEventListener('click',()=>{
+      if(selectedBurstKey===key){
+        selectedBurstKey=null;
+        tr.classList.remove('selected-row');
+      }else{
+        document.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('selected-row'));
+        tr.classList.add('selected-row');
+        selectedBurstKey=key;
+      }
+      renderPowerTimeline();
+    });
+    
+    tbody.appendChild(tr);
+  });
+
+  // Attach stream button listeners
+  content.querySelectorAll('.stream-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const key=btn.dataset.key;
+      const burst=burstsForDur.find(b=>burstKey(selectedThreshold,b)===key);
+      if(burst){
+        selectedBurstKey=key;
+        openStreamDialog(burst,color,selectedThreshold);
+        renderPowerTimeline();
+      }
+    });
+  });
+
+  detailsArea.appendChild(content);
+  detailsArea.classList.add('open');
+}
+
+// ── TABLES (OLD - NON USATO) ──────────────────────────────
+/* OLD IMPLEMENTATION - REMOVED FOR NEW DURATION-BASED LAYOUT
 function renderAllTables(){
   const area=document.getElementById('tablesArea');
   area.innerHTML='';
   allResults.forEach(res=>buildTable(res,area));
 }
 
-function buildTable({threshold,color,bursts},container){
-  const thrKey=`t${threshold}`;
-  if(!sortStates[thrKey]) sortStates[thrKey]={col:'rank',dir:'asc'};
-  if(collapseStates[thrKey]===undefined) collapseStates[thrKey]=false;
-  const ss=sortStates[thrKey];
-  const maxPow=bursts.length?Math.max(...bursts.map(b=>b.avg_power)):1;
-  const isCollapsed=collapseStates[thrKey];
-
-  const block=document.createElement('div');
-  block.className='thr-table-block';
-
-  const avgW=bursts.length?(bursts.reduce((a,b)=>a+b.avg_power,0)/bursts.length).toFixed(0):'-';
-  const avgDur=bursts.length?fmtDur(bursts.reduce((a,b)=>a+b.duration,0)/bursts.length):'-';
-  const maxW=bursts.length?Math.max(...bursts.map(b=>b.max_power)):'-';
-  const totDur=bursts.length?fmtDur(bursts.reduce((a,b)=>a+b.duration,0)):'-';
-
-  block.innerHTML=`
-    <div class="thr-table-header" style="border-left-color:${color}">
-      <span class="thr-table-title" style="color:${color}">≥ ${threshold} W — ${bursts.length} burst</span>
-      <div class="thr-table-meta">
-        ${bursts.length?`
-          <span class="thr-meta-item">Totale: <strong>${totDur}</strong></span>
-          <span class="thr-meta-item">Dur. media: <strong>${avgDur}</strong></span>
-          <span class="thr-meta-item">Avg W: <strong>${avgW} W</strong></span>
-          <span class="thr-meta-item">Picco: <strong>${maxW} W</strong></span>
-        `:''}
-      </div>
-      <button class="thr-collapse-btn" type="button">${isCollapsed?'Mostra':'Nascondi'}</button>
-    </div>
-    <div class="thr-table-content ${isCollapsed?'collapsed':''}">
-    ${bursts.length===0
-      ?`<div style="padding:24px;text-align:center;font-family:'IBM Plex Mono';font-size:12px;color:var(--muted2);">Nessun burst con questa soglia e durata minima.</div>`
-      :`<div style="overflow-x:auto;"><table>
-          <thead><tr>
-            <th data-col="rank">#</th>
-            <th data-col="hour">Inizio</th>
-            <th data-col="duration">Durata (s)</th>
-            <th data-col="avg_power">Avg W</th>
-            <th data-col="max_power">Max W</th>
-            <th data-col="min_power">Min W</th>
-            <th data-col="delta_above">↑ Soglia</th>
-            <th data-col="avg_hr">HR avg</th>
-            <th data-col="avg_cadence">Cad avg</th>
-            <th>Stream</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table></div>`
-    }
-    </div>
-  `;
-  container.appendChild(block);
-
-  const headerEl=block.querySelector('.thr-table-header');
-  const contentEl=block.querySelector('.thr-table-content');
-  const collapseBtn=block.querySelector('.thr-collapse-btn');
-  const toggleCollapse=()=>{
-    collapseStates[thrKey]=!collapseStates[thrKey];
-    contentEl.classList.toggle('collapsed',collapseStates[thrKey]);
-    collapseBtn.textContent=collapseStates[thrKey]?'Mostra':'Nascondi';
-  };
-  headerEl.addEventListener('click',e=>{ if(e.target.closest('.thr-collapse-btn')) return; toggleCollapse(); });
-  collapseBtn.addEventListener('click',e=>{ e.stopPropagation(); toggleCollapse(); });
-
-  if(!bursts.length) return;
-
-  block.querySelectorAll('thead th[data-col]').forEach(th=>{
-    if(ss.col===th.dataset.col) th.classList.add(ss.dir==='asc'?'sort-asc':'sort-desc');
-    th.addEventListener('click',()=>{
-      const col=th.dataset.col;
-      if(ss.col===col) ss.dir=ss.dir==='asc'?'desc':'asc';
-      else { ss.col=col; ss.dir='desc'; }
-      block.querySelectorAll('thead th').forEach(t=>t.classList.remove('sort-asc','sort-desc'));
-      th.classList.add(ss.dir==='asc'?'sort-asc':'sort-desc');
-      fillTbody(block.querySelector('tbody'),bursts,ss,maxPow,color,threshold);
-    });
-  });
-
-  fillTbody(block.querySelector('tbody'),bursts,ss,maxPow,color,threshold);
-}
-
-function fillTbody(tbody,bursts,ss,maxPow,color,threshold){
-  const sorted=[...bursts].sort((a,b)=>{ const va=a[ss.col]??0,vb=b[ss.col]??0; return ss.dir==='asc'?(va>vb?1:-1):(va<vb?1:-1); });
-  tbody.innerHTML=sorted.map(b=>{
-    const bar=(b.avg_power/maxPow*100).toFixed(0);
-    const hour=(b.hour&&b.hour!=='undefined')?b.hour:fmtTime(b.start_time||0);
-    return`<tr>
-      <td class="dim">${b.rank}</td>
-      <td class="bold">${hour}</td>
-      <td style="color:${color};font-weight:700">${b.duration}s</td>
-      <td>
-        ${b.avg_power.toFixed(0)} W
-        <div class="power-bar"><div class="power-bar-fill" style="width:${bar}%;background:${color}"></div></div>
-      </td>
-      <td>${b.max_power} W</td>
-      <td class="dim">${b.min_power} W</td>
-      <td class="green">+${b.delta_above.toFixed(0)} W</td>
-      <td class="dim">${b.avg_hr?b.avg_hr+' bpm':'—'}</td>
-      <td class="dim">${b.avg_cadence?b.avg_cadence+' rpm':'—'}</td>
-      <td><button class="stream-btn" data-key="${burstKey(threshold,b)}">stream</button></td>
-    </tr>`;
-  }).join('');
-
-  tbody.querySelectorAll('tr').forEach((tr,ri)=>{
-    tr.addEventListener('click',()=>{
-      const key=burstKey(threshold,sorted[ri]);
-      if(selectedBurstKey===key){ selectedBurstKey=null; document.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('selected-row')); }
-      else { document.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('selected-row')); tr.classList.add('selected-row'); selectedBurstKey=key; }
-      renderPowerTimeline();
-    });
-  });
-
-  tbody.querySelectorAll('.stream-btn').forEach((btn,ri)=>{
-    btn.addEventListener('click',e=>{
-      e.stopPropagation();
-      const burst=sorted[ri];
-      selectedBurstKey=burstKey(threshold,burst);
-      openStreamDialog(burst,color,threshold);
-      renderPowerTimeline();
-    });
-  });
-}
+function buildTable({threshold,color,bursts},container){ ... }
+function fillTbody(tbody,bursts,ss,maxPow,color,threshold){ ... }
+*/
 
 // ── POWER TIMELINE ────────────────────────────────────────
 function renderPowerTimeline(){
@@ -896,13 +1063,14 @@ function renderPowerTimeline(){
   svg.attr('width',w).attr('height',h);
   svg.selectAll('*').remove();
 
-  const pad={t:14,r:12,b:30,l:52};
+  const pad={t:14,r:30,b:30,l:52};
   const iW=w-pad.l-pad.r, iH=h-pad.t-pad.b;
   const times=rawRecords.map(r=>r.time_sec);
   const powers=rawRecords.map(r=>+r.power||0);
   const maxP=Math.max(...powers,...allResults.map(r=>r.threshold||0),100);
 
-  const x=d3.scaleLinear().domain([0,times[times.length-1]||1]).range([0,iW]);
+  const maxTime=times[times.length-1]||1;
+  const x=d3.scaleLinear().domain([0,maxTime]).range([0,iW]);
   const y=d3.scaleLinear().domain([0,maxP*1.08]).range([iH,0]);
   const g=svg.append('g').attr('transform',`translate(${pad.l},${pad.t})`);
   g.append('g').selectAll('line').data(y.ticks(5)).join('line')
@@ -933,8 +1101,8 @@ function renderPowerTimeline(){
         const isStrongest=strongestKey===key;
         const x0=zx(b.start_time);
         const w0=Math.max(1,zx(b.end_time)-zx(b.start_time));
-        burstLayer.append('rect').attr('x',x0).attr('y',0).attr('width',w0).attr('height',iH).attr('fill',color).attr('opacity',isSelected?0.58:(isStrongest?0.24:0.07));
-        if(isSelected){ burstLayer.append('rect').attr('x',x0).attr('y',1).attr('width',w0).attr('height',iH-2).attr('fill','none').attr('stroke','#f8fafc').attr('stroke-width',1.6).attr('opacity',0.9); }
+        burstLayer.append('rect').attr('x',x0).attr('y',0).attr('width',w0).attr('height',iH).attr('fill',color).attr('opacity',isSelected?0.8:(isStrongest?0.38:0.26));
+        if(isSelected){ burstLayer.append('rect').attr('x',x0).attr('y',1).attr('width',w0).attr('height',iH-2).attr('fill','none').attr('stroke','#f8fafc').attr('stroke-width',2).attr('opacity',0.95); }
       });
     });
     const line=d3.line().x((d,i)=>zx(times[i])).y(d=>y(d)).curve(d3.curveLinear);

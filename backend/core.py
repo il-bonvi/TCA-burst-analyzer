@@ -144,6 +144,54 @@ def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int,
     return bursts
 
 
+def count_bursts_by_exact_duration(records: list[dict[str, Any]], threshold: float, merge_gap: int) -> dict[int, int]:
+    """Conteggia i burst per ESATTA durata (non per "almeno").
+    
+    Trova TUTTI i burst (nessun filtro di durata minima), li raggruppa per durata esatta,
+    e conta le occorrenze. Restituisce dict {duration_sec: count}.
+    """
+    segs: list[dict[str, int]] = []
+    in_burst = False
+    burst_start = 0
+
+    # Rileva tutti i segmenti sopra soglia
+    for i, rec in enumerate(records):
+        if rec["power"] >= threshold and not in_burst:
+            in_burst = True
+            burst_start = i
+        elif rec["power"] < threshold and in_burst:
+            in_burst = False
+            segs.append({"s": burst_start, "e": i - 1})
+
+    if in_burst:
+        segs.append({"s": burst_start, "e": len(records) - 1})
+
+    # Merge burst vicini (gap <= merge_gap)
+    merged: list[dict[str, int]] = []
+    for seg in segs:
+        if not merged:
+            merged.append(seg.copy())
+            continue
+
+        last = merged[-1]
+        if records[seg["s"]]["time_sec"] - records[last["e"]]["time_sec"] <= merge_gap:
+            last["e"] = seg["e"]
+        else:
+            merged.append(seg.copy())
+
+    # Conta per esatta durata: un burst di 10s conta SOLO in "10s", non in "4s", "5s", ecc.
+    duration_counts: dict[int, int] = {}
+    for seg in merged:
+        s = seg["s"]
+        e = seg["e"]
+        duration = round(records[e]["time_sec"] - records[s]["time_sec"])
+        
+        # Conteggia TUTTI i burst (nessun filtro), per esatta durata
+        duration_counts[duration] = duration_counts.get(duration, 0) + 1
+    
+    return duration_counts
+
+
 def analyze_records(
     records: list[dict[str, Any]],
     thresholds: list[dict[str, Any]],
@@ -157,6 +205,12 @@ def analyze_records(
         watt = float(thr.get("watt", 0))
         color = thr.get("color")
         bursts = detect_bursts(records, watt, min_dur, merge_gap)
-        results.append({"threshold": watt, "color": color, "bursts": bursts})
+        duration_counts = count_bursts_by_exact_duration(records, watt, merge_gap)
+        results.append({
+            "threshold": watt, 
+            "color": color, 
+            "bursts": bursts,
+            "duration_counts": duration_counts  # NEW: mappa delle durate
+        })
 
     return results
