@@ -30,5 +30,4 @@ env/
 
 # === Misc ===
 *.bat
-webapp/
-PEFFORT/
+INFO/

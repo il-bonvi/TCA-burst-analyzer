@@ -177,7 +177,7 @@
   }
   .cfg-row textarea { min-height:58px; resize:vertical; }
 
-  .summary-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(175px,1fr)); gap:10px; }
+  .summary-row { display:flex; gap:12px; flex-wrap:nowrap; overflow-x:auto; align-items:center; padding-bottom:8px; margin-bottom:16px; }
   .summary-card {
     background:var(--panel); border:1px solid var(--border2); border-radius:8px; padding:16px 18px;
     position:relative; overflow:hidden;
@@ -493,6 +493,7 @@
       <div class="tabs" id="tabsNav">
         <button class="tab-btn active" data-tab="tab-list">Analisi</button>
         <button class="tab-btn" data-tab="tab-three">Settings</button>
+        <button class="tab-btn" id="exportExcelBtn" style="margin-left:auto; background:rgba(60,207,126,.1); border-color:rgba(60,207,126,.3); color:var(--green);">📊 Export Excel</button>
       </div>
 
       <div class="tab-pane active" id="tab-list">
@@ -805,18 +806,14 @@ let currentMinDur = 4;  // Durata minima per filtrare burst
 
 function renderSummary(){
   const summaryRow=document.getElementById('summaryRow');
-  summaryRow.innerHTML='';
-  
-  // Mostra un sommario compatto delle soglie
-  const summary=document.createElement('div');
-  summary.style.cssText='margin-bottom:16px;';
-  summary.innerHTML=allResults.map(({threshold,color,bursts})=>{
+  summaryRow.innerHTML=allResults.map(({threshold,color,bursts})=>{
     const n=bursts.length;
-    return `<div style="display:inline-block; margin-right:20px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted2);">
-      <span style="color:${color};font-weight:700;">≥ ${Math.round(threshold)}W</span> — ${n} burst totali
+    const totalDur=bursts.reduce((a,b)=>a+b.duration,0);
+    const totalDurFmt=fmtTime(totalDur);
+    return `<div style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted2); white-space:nowrap;">
+      <span style="color:${color};font-weight:700;">≥ ${Math.round(threshold)}W</span> — ${n} burst — Tot: <span style="color:${color};font-weight:600">${totalDurFmt}</span>
     </div>`;
   }).join('');
-  summaryRow.appendChild(summary);
 
   // Mostra tutte le griglie delle soglie, una sotto l'altra
   renderAllThresholdGrids();
@@ -852,20 +849,23 @@ function renderDurationGridForThreshold(res, tablesArea){
   const header=document.createElement('div');
   header.className='duration-grid-header';
   
-  // Calcola recap per questa soglia
+  // Crea recap per questa soglia
   const avgPowSoglia=bursts.length?(bursts.reduce((a,b)=>a+b.avg_power,0)/bursts.length).toFixed(0):'-';
   const avgHrSoglia=bursts.length?bursts.filter(b=>b.avg_hr).length>0?(bursts.reduce((a,b)=>a+(b.avg_hr||0),0)/bursts.filter(b=>b.avg_hr).length).toFixed(0):'-':'-';
   const avgCadSoglia=bursts.length?bursts.filter(b=>b.avg_cadence).length>0?(bursts.reduce((a,b)=>a+(b.avg_cadence||0),0)/bursts.filter(b=>b.avg_cadence).length).toFixed(0):'-':'-';
+  const totalDurSoglia=bursts.reduce((a,b)=>a+b.duration,0);
+  const totalDurSogliaFmt=fmtTime(totalDurSoglia);
   
   const headerContent=document.createElement('div');
   headerContent.style.flex='1';
   headerContent.innerHTML=`
     <div class="duration-grid-title" style="color:${color}">Burst per Durata Esatta — ≥${Math.round(threshold)}W</div>
-    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted2); margin-top:8px; display:flex; gap:20px; flex-wrap:wrap;">
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted2); margin-top:8px; display:flex; gap:20px; flex-wrap:nowrap; align-items:center;">
       <span>Totali: <strong style="color:${color}">${bursts.length}</strong></span>
-      <span>Avg Power: <strong>${avgPowSoglia}W</strong></span>
-      <span>Avg HR: <strong>${avgHrSoglia} bpm</strong></span>
-      <span>Avg Cad: <strong>${avgCadSoglia} rpm</strong></span>
+      <span>Tot: <strong style="color:${color}">${totalDurSogliaFmt}</strong></span>
+      <span>Avg Power: <strong style="color:#c084fc">${avgPowSoglia}W</strong></span>
+      <span>Avg HR: <strong style="color:#ef4444">${avgHrSoglia} bpm</strong></span>
+      <span>Avg Cad: <strong style="color:#4da6ff">${avgCadSoglia} rpm</strong></span>
     </div>
   `;
   header.appendChild(headerContent);
@@ -1075,13 +1075,12 @@ function renderBurstsForDuration(duration,res,color,container){
 }
 
 // ── TABLES (OLD - NON USATO) ──────────────────────────────
-/* OLD IMPLEMENTATION - REMOVED FOR NEW DURATION-BASED LAYOUT
+/*
 function renderAllTables(){
   const area=document.getElementById('tablesArea');
   area.innerHTML='';
   allResults.forEach(res=>buildTable(res,area));
 }
-
 function buildTable({threshold,color,bursts},container){ ... }
 function fillTbody(tbody,bursts,ss,maxPow,color,threshold){ ... }
 */
@@ -1308,6 +1307,98 @@ document.getElementById('exportBtn').addEventListener('click',()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='burst_multi_soglia.csv';a.click();URL.revokeObjectURL(a.href);
 });
 
+function exportExcel(){
+  if(!allResults.length) return;
+  
+  const wb=XLSX.utils.book_new();
+  
+  // SHEET 1: Summary
+  const summaryData=[
+    ['Burst Analysis Summary'],
+    [''],
+    ['Threshold', 'Bursts', 'Total Duration', 'Avg Power', 'Avg HR', 'Avg Cadence']
+  ];
+  
+  allResults.forEach(({threshold,color,bursts})=>{
+    const n=bursts.length;
+    const totalDur=bursts.reduce((a,b)=>a+b.duration,0);
+    const totalDurFmt=fmtTime(totalDur);
+    const avgPower=(bursts.reduce((a,b)=>a+b.avg_power,0)/n).toFixed(0);
+    const avgHR=(bursts.reduce((a,b)=>a+b.avg_hr,0)/n).toFixed(0);
+    const avgCadence=(bursts.reduce((a,b)=>a+b.avg_cadence,0)/n).toFixed(0);
+    summaryData.push([`≥ ${Math.round(threshold)}W`, n, totalDurFmt, avgPower+'W', avgHR+' bpm', avgCadence+' rpm']);
+  });
+  
+  const wsSummary=XLSX.utils.aoa_to_sheet(summaryData);
+  wsSummary.A1={t:'s',v:'Burst Analysis Summary',s:{font:{bold:true,sz:14}}};
+  wsSummary['!cols']=[{wch:15},{wch:12},{wch:15},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wsSummary,'Summary');
+  
+  // SHEETS per ogni soglia
+  allResults.forEach(({threshold,color,bursts,duration_counts})=>{
+    let dcounts=duration_counts;
+    if(!dcounts || typeof dcounts!=='object' || Object.keys(dcounts).length===0){
+      dcounts={};
+      bursts.forEach(b=>{ const dur=Math.round(b.duration); dcounts[dur]=(dcounts[dur]||0)+1; });
+    }
+    
+    const sheetName=`≥${Math.round(threshold)}W`;
+    const data=[
+      [`Bursts per Duration - ≥${Math.round(threshold)}W`],
+      [''],
+      ['Duration', 'Count', 'Total Time', 'Avg Power', 'Avg HR', 'Avg Cadence', 'Cumulative ≥', 'Cumulative Time']
+    ];
+    
+    const sortedDurations=Object.keys(dcounts).map(d=>parseInt(d)).filter(d=>d>=currentMinDur).sort((a,b)=>a-b);
+    
+    sortedDurations.forEach(dur=>{
+      const count=dcounts[dur];
+      const burstsForDur=bursts.filter(b=>Math.round(b.duration)===dur);
+      const totalDur=burstsForDur.reduce((a,b)=>a+b.duration,0);
+      const avgPow=(burstsForDur.reduce((a,b)=>a+b.avg_power,0)/count).toFixed(0);
+      const avgHR=(burstsForDur.reduce((a,b)=>a+b.avg_hr,0)/count).toFixed(0);
+      const avgCad=(burstsForDur.reduce((a,b)=>a+b.avg_cadence,0)/count).toFixed(0);
+      const cumulativeBursts=bursts.filter(b=>Math.round(b.duration)>=dur).length;
+      const cumulativeDuration=bursts.filter(b=>Math.round(b.duration)>=dur).reduce((a,b)=>a+b.duration,0);
+      
+      data.push([
+        dur+'s',
+        count,
+        fmtTime(totalDur),
+        avgPow+'W',
+        avgHR+' bpm',
+        avgCad+' rpm',
+        cumulativeBursts,
+        fmtTime(cumulativeDuration)
+      ]);
+    });
+    
+    const ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[{wch:12},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:14},{wch:14}];
+    
+    // Formattazione colore intestazione
+    const headerRow=2;
+    const headerColor=color.substring(1); // Rimuove # dal colore hex
+    for(let i=0;i<8;i++){
+      const cellRef=XLSX.utils.encode_cell({r:headerRow,c:i});
+      ws[cellRef]={...ws[cellRef], s:{
+        fill:{patternType:'solid',fgColor:{rgb:headerColor}},
+        font:{color:{rgb:'FFFFFF'},bold:true},
+        alignment:{horizontal:'center',vertical:'center'}
+      }};
+    }
+    
+    // Formato titolo
+    ws.A0={...ws.A0,s:{font:{bold:true,sz:12,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:headerColor}}}};
+    
+    XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  });
+  
+  XLSX.writeFile(wb,'burst_analysis.xlsx');
+}
+
+document.getElementById('exportExcelBtn').addEventListener('click',exportExcel);
+
 // ── FILE INPUTS ───────────────────────────────────────────
 document.getElementById('runBtn').addEventListener('click',runAnalysis);
 const fitInput=document.getElementById('fitInput');
@@ -1349,5 +1440,6 @@ window.addEventListener('resize',()=>{
   resizeTimer=setTimeout(()=>{ if(allResults.length){ renderPowerTimeline(); if(streamModalData) buildSprintStreamCharts(); } },200);
 });
 </script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
 </body>
 </html>
