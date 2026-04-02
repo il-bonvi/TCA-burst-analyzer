@@ -1307,94 +1307,183 @@ document.getElementById('exportBtn').addEventListener('click',()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='burst_multi_soglia.csv';a.click();URL.revokeObjectURL(a.href);
 });
 
-function exportExcel(){
-  if(!allResults.length) return;
-  
-  const wb=XLSX.utils.book_new();
-  
-  // SHEET 1: Summary
-  const summaryData=[
-    ['Burst Analysis Summary'],
-    [''],
-    ['Threshold', 'Bursts', 'Total Duration', 'Avg Power', 'Avg HR', 'Avg Cadence']
-  ];
-  
-  allResults.forEach(({threshold,color,bursts})=>{
-    const n=bursts.length;
-    const totalDur=bursts.reduce((a,b)=>a+b.duration,0);
-    const totalDurFmt=fmtTime(totalDur);
-    const avgPower=(bursts.reduce((a,b)=>a+b.avg_power,0)/n).toFixed(0);
-    const avgHR=(bursts.reduce((a,b)=>a+b.avg_hr,0)/n).toFixed(0);
-    const avgCadence=(bursts.reduce((a,b)=>a+b.avg_cadence,0)/n).toFixed(0);
-    summaryData.push([`≥ ${Math.round(threshold)}W`, n, totalDurFmt, avgPower+'W', avgHR+' bpm', avgCadence+' rpm']);
-  });
-  
-  const wsSummary=XLSX.utils.aoa_to_sheet(summaryData);
-  wsSummary.A1={t:'s',v:'Burst Analysis Summary',s:{font:{bold:true,sz:14}}};
-  wsSummary['!cols']=[{wch:15},{wch:12},{wch:15},{wch:12},{wch:12},{wch:12}];
-  XLSX.utils.book_append_sheet(wb,wsSummary,'Summary');
-  
-  // SHEETS per ogni soglia
-  allResults.forEach(({threshold,color,bursts,duration_counts})=>{
-    let dcounts=duration_counts;
-    if(!dcounts || typeof dcounts!=='object' || Object.keys(dcounts).length===0){
-      dcounts={};
-      bursts.forEach(b=>{ const dur=Math.round(b.duration); dcounts[dur]=(dcounts[dur]||0)+1; });
-    }
+function showExportMessage(msg){
+  const div=document.createElement('div');
+  div.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e1b4b;color:#00ff00;padding:20px 30px;border:2px solid #00ff00;border-radius:8px;font-size:16px;font-weight:bold;z-index:9999;box-shadow:0 0 20px rgba(0,255,0,0.5);';
+  div.textContent=msg;
+  document.body.appendChild(div);
+  setTimeout(()=>div.remove(),2500);
+}
+
+function lightenColor(hex,percent){
+  let r=parseInt(hex.substring(0,2),16);
+  let g=parseInt(hex.substring(2,4),16);
+  let b=parseInt(hex.substring(4,6),16);
+  r=Math.round(r*(1-percent)+255*percent);
+  g=Math.round(g*(1-percent)+255*percent);
+  b=Math.round(b*(1-percent)+255*percent);
+  return r.toString(16).padStart(2,'0').toUpperCase()+g.toString(16).padStart(2,'0').toUpperCase()+b.toString(16).padStart(2,'0').toUpperCase();
+}
+
+async function exportExcel(){
+  try {
+    if(!allResults.length){ showExportMessage('✗ Nessun dato da esportare'); return; }
     
-    const sheetName=`≥${Math.round(threshold)}W`;
-    const data=[
-      [`Bursts per Duration - ≥${Math.round(threshold)}W`],
-      [''],
-      ['Duration', 'Count', 'Total Time', 'Avg Power', 'Avg HR', 'Avg Cadence', 'Cumulative ≥', 'Cumulative Time']
+    const ExcelJS=window.ExcelJS;
+    const wb=new ExcelJS.Workbook();
+    
+    // SHEET 1: Summary
+    const wsSummary=wb.addWorksheet('Summary');
+    wsSummary.columns=[
+      {header:'Threshold',key:'threshold',width:15},
+      {header:'Bursts',key:'bursts',width:12},
+      {header:'Total Duration',key:'totalDur',width:15},
+      {header:'Avg Power',key:'avgPow',width:12},
+      {header:'Avg HR',key:'avgHR',width:12},
+      {header:'Avg Cadence',key:'avgCad',width:12}
     ];
     
-    const sortedDurations=Object.keys(dcounts).map(d=>parseInt(d)).filter(d=>d>=currentMinDur).sort((a,b)=>a-b);
+    // Titolo
+    wsSummary.insertRows(1,[]);
+    const titleCell=wsSummary.getCell('A1');
+    titleCell.value='Burst Analysis Summary';
+    titleCell.font={bold:true,size:14,color:{rgb:'FFFFFFFF'}};
+    titleCell.fill={type:'solid',fgColor:{rgb:'FF333333'}};
+    wsSummary.getRow(1).height=25;
     
-    sortedDurations.forEach(dur=>{
-      const count=dcounts[dur];
-      const burstsForDur=bursts.filter(b=>Math.round(b.duration)===dur);
-      const totalDur=burstsForDur.reduce((a,b)=>a+b.duration,0);
-      const avgPow=(burstsForDur.reduce((a,b)=>a+b.avg_power,0)/count).toFixed(0);
-      const avgHR=(burstsForDur.reduce((a,b)=>a+b.avg_hr,0)/count).toFixed(0);
-      const avgCad=(burstsForDur.reduce((a,b)=>a+b.avg_cadence,0)/count).toFixed(0);
-      const cumulativeBursts=bursts.filter(b=>Math.round(b.duration)>=dur).length;
-      const cumulativeDuration=bursts.filter(b=>Math.round(b.duration)>=dur).reduce((a,b)=>a+b.duration,0);
+    // Righe dati
+    allResults.forEach(({threshold,color,bursts})=>{
+      const n=bursts.length;
+      const totalDur=bursts.reduce((a,b)=>a+b.duration,0);
+      const totalDurFmt=fmtTime(totalDur);
+      const avgPower=(bursts.reduce((a,b)=>a+b.avg_power,0)/n).toFixed(0);
+      const avgHR=(bursts.reduce((a,b)=>a+b.avg_hr,0)/n).toFixed(0);
+      const avgCadence=(bursts.reduce((a,b)=>a+b.avg_cadence,0)/n).toFixed(0);
+      const row=wsSummary.addRow({
+        threshold:`≥ ${Math.round(threshold)}W`,
+        bursts:n,
+        totalDur:totalDurFmt,
+        avgPow:avgPower+'W',
+        avgHR:avgHR+' bpm',
+        avgCad:avgCadence+' rpm'
+      });
       
-      data.push([
-        dur+'s',
-        count,
-        fmtTime(totalDur),
-        avgPow+'W',
-        avgHR+' bpm',
-        avgCad+' rpm',
-        cumulativeBursts,
-        fmtTime(cumulativeDuration)
-      ]);
+      const hexColor=color.substring(1);
+      const lightColor=lightenColor(hexColor,0.65);
+      row.eachCell((cell)=>{
+        cell.fill={type:'solid',fgColor:{rgb:'FF'+lightColor}};
+        cell.font={bold:true,size:11};
+        cell.alignment={horizontal:'center',vertical:'center'};
+        cell.border={top:{style:'thin',color:{rgb:'FF666666'}},bottom:{style:'thin',color:{rgb:'FF666666'}},left:{style:'thin',color:{rgb:'FF666666'}},right:{style:'thin',color:{rgb:'FF666666'}}};
+      });
     });
     
-    const ws=XLSX.utils.aoa_to_sheet(data);
-    ws['!cols']=[{wch:12},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:14},{wch:14}];
+    // Header formatting
+    wsSummary.getRow(2).eachCell((cell)=>{
+      cell.font={bold:true,size:12,color:{rgb:'FFFFFFFF'}};
+      cell.fill={type:'solid',fgColor:{rgb:'FF333333'}};
+      cell.alignment={horizontal:'center',vertical:'center'};
+    });
+    wsSummary.getRow(2).height=20;
     
-    // Formattazione colore intestazione
-    const headerRow=2;
-    const headerColor=color.substring(1); // Rimuove # dal colore hex
-    for(let i=0;i<8;i++){
-      const cellRef=XLSX.utils.encode_cell({r:headerRow,c:i});
-      ws[cellRef]={...ws[cellRef], s:{
-        fill:{patternType:'solid',fgColor:{rgb:headerColor}},
-        font:{color:{rgb:'FFFFFF'},bold:true},
-        alignment:{horizontal:'center',vertical:'center'}
-      }};
-    }
+    // SHEETS per ogni soglia
+    allResults.forEach(({threshold,color,bursts,duration_counts})=>{
+      let dcounts=duration_counts;
+      if(!dcounts || typeof dcounts!=='object' || Object.keys(dcounts).length===0){
+        dcounts={};
+        bursts.forEach(b=>{ const dur=Math.round(b.duration); dcounts[dur]=(dcounts[dur]||0)+1; });
+      }
+      
+      const sheetName=`≥${Math.round(threshold)}W`;
+      const ws=wb.addWorksheet(sheetName.substring(0,31));
+      
+      ws.columns=[
+        {header:'Duration',key:'duration',width:12},
+        {header:'Count',key:'count',width:10},
+        {header:'Total Time',key:'totalTime',width:12},
+        {header:'Avg Power',key:'avgPower',width:12},
+        {header:'Avg HR',key:'avgHR',width:12},
+        {header:'Avg Cadence',key:'avgCad',width:12},
+        {header:'Cumulative ≥',key:'cumBursts',width:14},
+        {header:'Cumulative Time',key:'cumTime',width:14}
+      ];
+      
+      // Titolo
+      ws.insertRows(1,[]);
+      const titleCell=ws.getCell('A1');
+      titleCell.value=`Bursts per Duration - ${sheetName}`;
+      titleCell.font={bold:true,size:12,color:{rgb:'FFFFFFFF'}};
+      const hexColor=color.substring(1);
+      titleCell.fill={type:'solid',fgColor:{rgb:'FF'+hexColor}};
+      ws.mergeCells('A1:H1');
+      titleCell.alignment={horizontal:'left',vertical:'center'};
+      ws.getRow(1).height=25;
+      
+      // Header
+      ws.getRow(3).eachCell((cell)=>{
+        cell.font={bold:true,size:11,color:{rgb:'FFFFFFFF'}};
+        cell.fill={type:'solid',fgColor:{rgb:'FF'+hexColor}};
+        cell.alignment={horizontal:'center',vertical:'center'};
+        cell.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}};
+      });
+      ws.getRow(3).height=20;
+      
+      // Dati
+      const sortedDurations=Object.keys(dcounts).map(d=>parseInt(d)).filter(d=>d>=currentMinDur).sort((a,b)=>a-b);
+      const lightColor=lightenColor(hexColor,0.7);
+      const veryLightColor=lightenColor(hexColor,0.85);
+      
+      sortedDurations.forEach(dur=>{
+        const count=dcounts[dur];
+        const burstsForDur=bursts.filter(b=>Math.round(b.duration)===dur);
+        const totalDur=burstsForDur.reduce((a,b)=>a+b.duration,0);
+        const avgPow=(burstsForDur.reduce((a,b)=>a+b.avg_power,0)/count).toFixed(0);
+        const avgHR=(burstsForDur.reduce((a,b)=>a+b.avg_hr,0)/count).toFixed(0);
+        const avgCad=(burstsForDur.reduce((a,b)=>a+b.avg_cadence,0)/count).toFixed(0);
+        const cumulativeBursts=bursts.filter(b=>Math.round(b.duration)>=dur).length;
+        const cumulativeDuration=bursts.filter(b=>Math.round(b.duration)>=dur).reduce((a,b)=>a+b.duration,0);
+        
+        const row=ws.addRow({
+          duration:dur+'s',
+          count:count,
+          totalTime:fmtTime(totalDur),
+          avgPower:avgPow+'W',
+          avgHR:avgHR+' bpm',
+          avgCad:avgCad+' rpm',
+          cumBursts:cumulativeBursts,
+          cumTime:fmtTime(cumulativeDuration)
+        });
+        
+        row.eachCell((cell,colNum)=>{
+          let bgColor=veryLightColor;
+          let bold=false;
+          if(colNum===2||colNum===3||colNum===7||colNum===8){
+            bgColor=lightColor;
+            bold=true;
+          }
+          cell.fill={type:'solid',fgColor:{rgb:'FF'+bgColor}};
+          cell.font={bold:bold,size:10};
+          cell.alignment={horizontal:'center',vertical:'center'};
+          cell.border={top:{style:'thin',color:{rgb:'FFCCCCCC'}},bottom:{style:'thin',color:{rgb:'FFCCCCCC'}},left:{style:'thin',color:{rgb:'FFCCCCCC'}},right:{style:'thin',color:{rgb:'FFCCCCCC'}}};
+        });
+      });
+    });
     
-    // Formato titolo
-    ws.A0={...ws.A0,s:{font:{bold:true,sz:12,color:{rgb:'FFFFFF'}},fill:{patternType:'solid',fgColor:{rgb:headerColor}}}};
+    // Scarica file
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='burst_analysis.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
     
-    XLSX.utils.book_append_sheet(wb,ws,sheetName);
-  });
-  
-  XLSX.writeFile(wb,'burst_analysis.xlsx');
+    showExportMessage('✓ File burst_analysis.xlsx esportato!');
+  } catch(err){
+    console.error('Errore export Excel:',err);
+    showExportMessage('✗ Errore: '+err.message);
+  }
 }
 
 document.getElementById('exportExcelBtn').addEventListener('click',exportExcel);
@@ -1440,6 +1529,6 @@ window.addEventListener('resize',()=>{
   resizeTimer=setTimeout(()=>{ if(allResults.length){ renderPowerTimeline(); if(streamModalData) buildSprintStreamCharts(); } },200);
 });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@latest/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 </body>
 </html>
