@@ -207,8 +207,8 @@
   .duration-grid-header { padding:14px 20px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.03); display:flex; justify-content:space-between; align-items:center; }
   .duration-grid-collapse-btn { background:transparent; border:1px solid var(--border2); color:var(--muted2); border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer; transition:color .2s, border-color .2s; }
   .duration-grid-collapse-btn:hover { color:var(--text); border-color:var(--border); }
-  .duration-grid-body { max-height:none; overflow:visible; transition:max-height .3s cubic-bezier(0.4, 0, 0.2, 1); }
-  .duration-grid-body.collapsed { max-height:0; overflow:hidden; }
+  .duration-grid-body { max-height:5000px; overflow:hidden; transition:max-height .35s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+  .duration-grid-body.collapsed { max-height:0 !important; padding:0 !important; }
   .duration-grid-title { font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; color:var(--text); }
   .duration-grid-content { display:grid; grid-template-columns:repeat(auto-fill,minmax(70px,1fr)); gap:8px; padding:14px 20px; }
   .duration-cell {
@@ -876,7 +876,18 @@ function renderDurationGridForThreshold(res, tablesArea){
   let isCollapsed=false;
   collapseBtn.addEventListener('click',()=>{
     isCollapsed=!isCollapsed;
-    body.classList.toggle('collapsed');
+    if(isCollapsed){
+      body.classList.add('collapsed');
+      body.style.maxHeight='0';
+    }else{
+      body.classList.remove('collapsed');
+      // Calcola l'altezza reale del contenuto e impostala
+      setTimeout(()=>{
+        const scrollHeight=body.scrollHeight;
+        body.style.maxHeight=scrollHeight+'px';
+        body.addEventListener('transitionend',()=>{ body.style.maxHeight='5000px'; },{once:true});
+      },10);
+    }
     collapseBtn.textContent=isCollapsed?'+':'−';
   });
   header.appendChild(collapseBtn);
