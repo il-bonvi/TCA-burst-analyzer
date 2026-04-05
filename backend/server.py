@@ -5,11 +5,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from backend.core import analyze_records, parse_fit_records
+from backend.excel_export import build_excel
 
-app = FastAPI(title="Burst Analyzer API", version="1.0.0")
+app = FastAPI(title="Burst Analyzer API", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,6 +74,33 @@ async def analyze_fit(
             "fileName": file.filename,
         },
     }
+
+
+@app.post("/api/export-excel")
+async def export_excel(
+    results_json: str = Form(...),
+    min_dur: int = Form(4),
+    filename: str = Form("burst_analysis"),
+) -> Response:
+    try:
+        all_results = json.loads(results_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="results_json non valido") from exc
+
+    try:
+        xlsx_bytes = build_excel(all_results, min_dur=int(min_dur))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Errore generazione Excel: {exc}") from exc
+
+    safe_name = "".join(c for c in filename if c.isalnum() or c in "-_.")
+    if not safe_name.endswith(".xlsx"):
+        safe_name += ".xlsx"
+
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
 
 
 if __name__ == "__main__":
