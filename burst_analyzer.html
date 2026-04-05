@@ -645,6 +645,10 @@ let activeTab = 'tab-list';
 let selectedBurstKey = null;
 let streamModalData = null;
 let powerZoomTransform = d3.zoomIdentity;
+let selectedDurations = [];
+let selectedDurationThresholds = [];
+let lastClickedDuration = null;
+let lastClickedThreshold = null;
 
 function applyGenderPreset(preset){
   if(!GENDER_PRESETS[preset]) return;
@@ -862,6 +866,10 @@ async function runAnalysis(){
   selectedBurstKey=null;
   selectedThreshold=null;
   selectedDuration=null;
+  selectedDurations=[];
+  selectedDurationThresholds=[];
+  lastClickedDuration=null;
+  lastClickedThreshold=null;
   showAnalysisWorkspace();
   const wsThr=document.getElementById('wsThrCsv');
   if(wsThr) wsThr.value=thresholds.map(t=>Math.round(t.watt)).join(',');
@@ -1052,51 +1060,141 @@ function renderDurationGridForThreshold(res, tablesArea){
       `;
       
       // Click mostra i dettagli DENTRO la card
-      cell.addEventListener('click',()=>{
-        selectedThreshold=threshold;
-        // Se clicchi la stessa durata, toggle (chiudi). Se diversa, cambia i dettagli
-        if(selectedDuration===dur){
-          // Stessa durata cliccata due volte: chiudi il toggle
-          const detailsArea=container.querySelector('.burst-details-area');
-          if(detailsArea.classList.contains('open')){
-            detailsArea.classList.remove('open');
-            selectedDuration=null;
-            selectedBurstKey=null;
-            // Rimuovi la classe active dalla cella
-            document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
-            // Rimetti il grafico al suo posto originale (dopo summary-row)
-            const tabList=document.getElementById('tab-list');
-            const summaryRow=tabList.querySelector('.summary-row');
-            const chartWrap=tabList.querySelector('.chart-wrap');
-            if(summaryRow && chartWrap) summaryRow.parentNode.insertBefore(chartWrap, summaryRow.nextSibling);
-            renderPowerTimeline();
-            return;
+      cell.addEventListener('click',(e)=>{
+        const ctrlKey = e.ctrlKey || e.metaKey;
+        const shiftKey = e.shiftKey;
+        
+        // Se nessun tasto premuto: selezione singola (comportamento originale)
+        if(!ctrlKey && !shiftKey){
+          // Se clicchi la stessa durata, toggle (chiudi). Se diversa, cambia i dettagli
+          if(selectedDuration===dur && selectedThreshold===threshold){
+            const detailsArea=container.querySelector('.burst-details-area');
+            if(detailsArea.classList.contains('open')){
+              detailsArea.classList.remove('open');
+              selectedDuration=null;
+              selectedThreshold=null;
+              selectedBurstKey=null;
+              selectedDurations=[];
+              selectedDurationThresholds=[];
+              document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
+              const tabList=document.getElementById('tab-list');
+              const summaryRow=tabList.querySelector('.summary-row');
+              const chartWrap=tabList.querySelector('.chart-wrap');
+              if(summaryRow && chartWrap) summaryRow.parentNode.insertBefore(chartWrap, summaryRow.nextSibling);
+              renderPowerTimeline();
+              return;
+            }
           }
+          // Pulisci selezioni precedenti
+          selectedDurations=[];
+          selectedDurationThresholds=[];
+          document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
+          cell.classList.add('active');
+          selectedDuration=dur;
+          selectedThreshold=threshold;
+          selectedDurations=[`${threshold}_${dur}`];
+          selectedDurationThresholds=[{threshold,dur}];
+          lastClickedDuration={threshold,dur};
         }
-        // Rimuovi active da tutte le celle e aggiungi alla cella corrente
-        document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
-        cell.classList.add('active');
-        selectedDuration=dur;
-        
-        // Sposta il grafico prima di questa soglia
-        const tabList=document.getElementById('tab-list');
-        const chartWrap=tabList.querySelector('.chart-wrap');
-        if(chartWrap && container.parentNode) {
-          container.parentNode.insertBefore(chartWrap, container);
-        }
-        
-        renderBurstsForDuration(dur,res,color,container);
-        
-        // Scroll smooth: grafico ben visibile in alto
-        setTimeout(()=>{
-          const chartWrap=document.querySelector('.chart-wrap');
-          if(chartWrap){
-            const chartRect=chartWrap.getBoundingClientRect();
-            const scrollY=window.scrollY;
-            // Posiziona il grafico con margine ridotto dal top (~30px)
-            window.scrollTo({top:scrollY+chartRect.top-2,behavior:'smooth'});
+        // Ctrl + click: aggiungi/togli dalla selezione multipla
+        else if(ctrlKey && !shiftKey){
+          const key=`${threshold}_${dur}`;
+          const key_idx=selectedDurations.indexOf(key);
+          if(key_idx>=0){
+            selectedDurations.splice(key_idx,1);
+            selectedDurationThresholds.splice(key_idx,1);
+            cell.classList.remove('active');
+          }else{
+            selectedDurations.push(key);
+            selectedDurationThresholds.push({threshold,dur});
+            cell.classList.add('active');
           }
-        },100);
+          lastClickedDuration={threshold,dur};
+        }
+        // Shift + click: seleziona range da ultimo click a questo
+        else if(shiftKey && lastClickedDuration){
+          selectedDurations=[];
+          selectedDurationThresholds=[];
+          document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
+          
+          // Se sono sulla stessa soglia, seleziona range di durate
+          if(lastClickedDuration.threshold===threshold){
+            // Raccogli tutte le durate di questa soglia
+            const allDurationsThisThreshold=Array.from(document.querySelectorAll('.duration-cell'))
+              .filter(c=>{
+                const label=c.querySelector('.duration-label').textContent.trim();
+                const dur_val=parseInt(label);
+                return !isNaN(dur_val);
+              })
+              .map(c=>{
+                const label=c.querySelector('.duration-label').textContent.trim();
+                return parseInt(label);
+              })
+              .filter((d,i,arr)=>arr.indexOf(d)===i)
+              .sort((a,b)=>a-b);
+            
+            const minDur=Math.min(lastClickedDuration.dur,dur);
+            const maxDur=Math.max(lastClickedDuration.dur,dur);
+            
+            allDurationsThisThreshold.forEach(d=>{
+              if(d>=minDur && d<=maxDur){
+                selectedDurations.push(`${threshold}_${d}`);
+                selectedDurationThresholds.push({threshold,dur:d});
+                // Marca le celle
+                document.querySelectorAll('.duration-cell').forEach(cell_item=>{
+                  const label=cell_item.querySelector('.duration-label').textContent.trim();
+                  if(label===`${d}s`) cell_item.classList.add('active');
+                });
+              }
+            });
+          }else{
+            // Soglie diverse: cliccabile solo sulla stessa soglia per range
+            cell.classList.add('active');
+            selectedDurations.push(`${threshold}_${dur}`);
+            selectedDurationThresholds.push({threshold,dur});
+          }
+          lastClickedDuration={threshold,dur};
+        }
+        // Shift + click su primo elemento (nessun lastClickedDuration): aggiungilo come selezione singola
+        else if(shiftKey && !lastClickedDuration){
+          cell.classList.add('active');
+          selectedDurations.push(`${threshold}_${dur}`);
+          selectedDurationThresholds.push({threshold,dur});
+          lastClickedDuration={threshold,dur};
+        }
+        
+        // Se nulla selezionato, mostra il grafico e chiudi i dettagli
+        if(selectedDurations.length===0){
+          selectedDuration=null;
+          selectedThreshold=null;
+          selectedBurstKey=null;
+          document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
+          document.querySelectorAll('.burst-details-area').forEach(d=>d.classList.remove('open'));
+          const tabList=document.getElementById('tab-list');
+          const summaryRow=tabList.querySelector('.summary-row');
+          const chartWrap=tabList.querySelector('.chart-wrap');
+          if(summaryRow && chartWrap) summaryRow.parentNode.insertBefore(chartWrap, summaryRow.nextSibling);
+          renderPowerTimeline();
+        }else{
+          // Sposta il grafico prima di questa soglia
+          const tabList=document.getElementById('tab-list');
+          const chartWrap=tabList.querySelector('.chart-wrap');
+          if(chartWrap && container.parentNode) {
+            container.parentNode.insertBefore(chartWrap, container);
+          }
+          
+          renderBurstsForSelectedDurations(container);
+          
+          // Scroll smooth
+          setTimeout(()=>{
+            const chartWrap=document.querySelector('.chart-wrap');
+            if(chartWrap){
+              const chartRect=chartWrap.getBoundingClientRect();
+              const scrollY=window.scrollY;
+              window.scrollTo({top:scrollY+chartRect.top-2,behavior:'smooth'});
+            }
+          },100);
+        }
       });
       body.appendChild(cell);
     });
@@ -1219,6 +1317,119 @@ function renderBurstsForDuration(duration,res,color,container){
   renderPowerTimeline();
 }
 
+function renderBurstsForSelectedDurations(container){
+  if(selectedDurationThresholds.length===0) return;
+  
+  const detailsArea=container.querySelector('.burst-details-area');
+  if(!detailsArea) return;
+  
+  detailsArea.innerHTML='';
+  
+  // Raccogli tutti i burst per le durate selezionate
+  let allSelectedBursts=[];
+  selectedDurationThresholds.forEach(({threshold,dur})=>{
+    const res=allResults.find(r=>r.threshold===threshold);
+    if(res){
+      const burstsForDur=res.bursts.filter(b=>Math.round(b.duration)===dur);
+      burstsForDur.forEach(b=>allSelectedBursts.push({...b,threshold,res}));
+    }
+  });
+  
+  if(allSelectedBursts.length===0) return;
+  
+  // Calcola metriche globali
+  const m=calcMetricsForBursts(allSelectedBursts);
+  const avgPow=m.avgPow, avgHr=m.avgHr, avgCad=m.avgCad;
+  
+  const header=document.createElement('div');
+  header.className='burst-list-header';
+  header.innerHTML=`
+    <div class="burst-list-title">Burst Selezionati (${allSelectedBursts.length} totali)</div>
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted2); margin-top:8px; display:flex; gap:20px; flex-wrap:wrap;">
+      <span>Avg Power: <strong>${avgPow}W</strong></span>
+      <span>Avg HR: <strong>${avgHr} bpm</strong></span>
+      <span>Avg Cad: <strong>${avgCad} rpm</strong></span>
+      <span style="margin-left:auto;color:var(--accent);">${selectedDurationThresholds.length} durata(e)</span>
+    </div>
+  `;
+  detailsArea.appendChild(header);
+
+  const content=document.createElement('div');
+  content.className='burst-list-content';
+  const tableHtml=`
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th>Inizio</th>
+        <th>Durata (s)</th>
+        <th>Soglia W</th>
+        <th>Avg W</th>
+        <th>HR avg</th>
+        <th>Cad avg</th>
+        <th>Max W</th>
+        <th>Min W</th>
+        <th>↑ Soglia</th>
+        <th>Stream</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  `;
+  content.innerHTML=tableHtml;
+  const tbody=content.querySelector('tbody');
+
+  allSelectedBursts.forEach(b=>{
+    const tr=document.createElement('tr');
+    const hour=(b.hour&&b.hour!=='undefined')?b.hour:fmtTime(b.start_time||0);
+    const color=b.res.color;
+    tr.innerHTML=`
+      <td class="dim">${b.rank}</td>
+      <td class="bold">${hour}</td>
+      <td style="color:${color};font-weight:700">${b.duration}s</td>
+      <td style="color:${color};font-weight:700">${Math.round(b.threshold)}W</td>
+      <td style="color:#c084fc;font-weight:600">${b.avg_power.toFixed(0)} W</td>
+      <td style="color:#ef4444;font-weight:600">${b.avg_hr?b.avg_hr+' bpm':'—'}</td>
+      <td style="color:#4da6ff;font-weight:600">${b.avg_cadence?b.avg_cadence+' rpm':'—'}</td>
+      <td style="color:#9555cc;font-weight:600">${b.max_power} W</td>
+      <td style="color:#d9a8ff;font-weight:600">${b.min_power} W</td>
+      <td class="green">+${b.delta_above.toFixed(0)} W</td>
+      <td><button class="stream-btn" data-key="${burstKey(b.threshold,b)}">stream</button></td>
+    `;
+    
+    const key=burstKey(b.threshold,b);
+    tr.addEventListener('click',()=>{
+      if(selectedBurstKey===key){
+        selectedBurstKey=null;
+        tr.classList.remove('selected-row');
+      }else{
+        document.querySelectorAll('tbody tr').forEach(r=>r.classList.remove('selected-row'));
+        tr.classList.add('selected-row');
+        selectedBurstKey=key;
+      }
+      renderPowerTimeline();
+    });
+    
+    tbody.appendChild(tr);
+  });
+
+  content.querySelectorAll('.stream-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const key=btn.dataset.key;
+      const burst=allSelectedBursts.find(b=>burstKey(b.threshold,b)===key);
+      if(burst){
+        selectedBurstKey=key;
+        openStreamDialog(burst,burst.res.color,burst.threshold);
+        renderPowerTimeline();
+      }
+    });
+  });
+
+  detailsArea.appendChild(content);
+  detailsArea.classList.add('open');
+  
+  renderPowerTimeline();
+}
+
 // ── METRIC HELPERS ────────────────────────────────────────
 function calcMetricsForBursts(bursts){
   const avgPow=bursts.length?(bursts.reduce((a,b)=>a+b.avg_power,0)/bursts.length).toFixed(0):'-';
@@ -1277,8 +1488,15 @@ function renderPowerTimeline(){
         const isSelected=selectedBurstKey===key;
         const isStrongest=strongestKey===key;
         
-        // Se una lista di burst è aperta (selectedDuration !== null), mostra solo quelli di quella durata e soglia
-        if(selectedDuration!==null && (selectedThreshold!==threshold || Math.round(b.duration)!==selectedDuration)){
+        // Se una lista di burst è aperta (selectedDurations.length > 0), mostra solo quelli selezionati
+        if(selectedDurations.length>0){
+          const durationKey=`${threshold}_${Math.round(b.duration)}`;
+          if(!selectedDurations.includes(durationKey)){
+            return; // Salta questo burst
+          }
+        }
+        // Altrimenti, se selectedDuration !== null, filtra per quella (compatibilità con selezione singola)
+        else if(selectedDuration!==null && (selectedThreshold!==threshold || Math.round(b.duration)!==selectedDuration)){
           return; // Salta questo burst
         }
         
