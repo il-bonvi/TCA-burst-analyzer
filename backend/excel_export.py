@@ -7,6 +7,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from backend.utils import fmt_time, safe_avg
+
 # ──────────────────────────────────────────────────────────────────────────────
 # COLOR PALETTE  ←  edit these to change all colors in the export
 # Format: "FFRRGGBB"  (FF = fully opaque, then hex RGB)
@@ -46,6 +48,20 @@ def _hex_to_argb(hex_color: str) -> str:
     return "FF" + hex_color.lstrip("#").upper()
 
 
+def _get_duration_counts(
+    duration_counts: dict | None, bursts: list
+) -> dict[int, int]:
+    """Ensure duration_counts is populated, reconstructing from bursts if needed."""
+    if duration_counts:
+        return duration_counts
+    
+    result: dict[int, int] = {}
+    for b in bursts:
+        dur = round(b["duration"])
+        result[dur] = result.get(dur, 0) + 1
+    return result
+
+
 def _lighten(hex_color: str, factor: float) -> str:
     """Blend hex_color toward white by factor (0=unchanged, 1=white)."""
     h = hex_color.lstrip("#")
@@ -82,19 +98,7 @@ def _font(
     return Font(bold=bold, size=size, color=color, name=name)
 
 
-def _fmt_time(seconds: float) -> str:
-    total = int(round(seconds))
-    h = total // 3600
-    m = (total % 3600) // 60
-    s = total % 60
-    if h > 0:
-        return f"{h}:{m:02d}:{s:02d}"
-    return f"{m:02d}:{s:02d}"
 
-
-def _safe_avg(values: list) -> float:
-    filtered = [v for v in values if v is not None]
-    return sum(filtered) / len(filtered) if filtered else 0.0
 
 
 def _write_header_row(ws, row: int, columns: list[tuple[str, int]]) -> None:
@@ -163,11 +167,11 @@ def build_excel(
             continue
 
         total_dur  = sum(b["duration"] for b in bursts)
-        avg_power  = _safe_avg([b["avg_power"] for b in bursts])
+        avg_power  = safe_avg([b["avg_power"] for b in bursts])
         avg_hr_v   = [b["avg_hr"] for b in bursts if b.get("avg_hr")]
         avg_cad_v  = [b["avg_cadence"] for b in bursts if b.get("avg_cadence")]
-        avg_hr     = _safe_avg(avg_hr_v)  if avg_hr_v  else None
-        avg_cad    = _safe_avg(avg_cad_v) if avg_cad_v else None
+        avg_hr     = safe_avg(avg_hr_v)  if avg_hr_v  else None
+        avg_cad    = safe_avg(avg_cad_v) if avg_cad_v else None
 
         bg_thr = _hex_to_argb(color)
         bg_row = _lighten(color, 0.82)
@@ -176,7 +180,7 @@ def build_excel(
         values  = [
             f"≥ {round(threshold)} W",
             n,
-            _fmt_time(total_dur),
+            fmt_time(total_dur),
             f"{avg_power:.0f} W",
             f"{avg_hr:.0f} bpm"  if avg_hr  else "—",
             f"{avg_cad:.0f} rpm" if avg_cad else "—",
@@ -205,13 +209,7 @@ def build_excel(
     # Collect all unique durations across all thresholds (>= min_dur), sorted ascending
     all_durations: list[int] = []
     for res in ordered_results:
-        duration_counts = res.get("duration_counts", {})
-        if not duration_counts:
-            for b in res.get("bursts", []):
-                dur = round(b["duration"])
-                if dur not in duration_counts:
-                    duration_counts[dur] = 0
-                duration_counts[dur] += 1
+        duration_counts = _get_duration_counts(res.get("duration_counts"), res.get("bursts", []))
         for d in duration_counts.keys():
             dur_int = int(d)
             if dur_int >= min_dur and dur_int not in all_durations:
@@ -221,12 +219,12 @@ def build_excel(
     # Metric rows definition: (label, metric_key, color, format_fn)
     METRIC_ROWS = [
         ("Count",         "count",     C_TIME, lambda v, _: str(int(v)) if v else "—"),
-        ("Total Time",    "tot_time",  C_TIME, lambda v, _: _fmt_time(v) if v else "—"),
+        ("Total Time",    "tot_time",  C_TIME, lambda v, _: fmt_time(v) if v else "—"),
         ("Avg Power (W)", "avg_pow",   C_WATT, lambda v, _: f"{v:.0f}" if v else "—"),
         ("Avg HR (bpm)",  "avg_hr",    C_HR,   lambda v, _: f"{v:.0f}" if v else "—"),
         ("Avg Cad (rpm)", "avg_cad",   C_CAD,  lambda v, _: f"{v:.0f}" if v else "—"),
         ("Tot ≥ Count",   "cum_cnt",   C_TOT,  lambda v, _: str(int(v)) if v else "—"),
-        ("Tot ≥ Time",    "cum_time",  C_TOT,  lambda v, _: _fmt_time(v) if v else "—"),
+        ("Tot ≥ Time",    "cum_time",  C_TOT,  lambda v, _: fmt_time(v) if v else "—"),
     ]
 
     current_row = sep_row
@@ -235,12 +233,7 @@ def build_excel(
         threshold = res["threshold"]
         color     = res.get("color", "#888888")
         bursts    = res.get("bursts", [])
-        duration_counts = res.get("duration_counts", {})
-        if not duration_counts:
-            duration_counts = {}
-            for b in bursts:
-                dur = round(b["duration"])
-                duration_counts[dur] = duration_counts.get(dur, 0) + 1
+        duration_counts = _get_duration_counts(res.get("duration_counts"), bursts)
 
         argb    = _hex_to_argb(color)
         light   = _lighten(color, 0.70)
@@ -257,11 +250,11 @@ def build_excel(
 
             bd = [b for b in bursts if round(b["duration"]) == dur]
             total_d = sum(b["duration"] for b in bd)
-            avg_pw  = _safe_avg([b["avg_power"]   for b in bd])
+            avg_pw  = safe_avg([b["avg_power"]   for b in bd])
             hr_v    = [b["avg_hr"]      for b in bd if b.get("avg_hr")]
             cad_v   = [b["avg_cadence"] for b in bd if b.get("avg_cadence")]
-            avg_hr  = _safe_avg(hr_v)  if hr_v  else None
-            avg_cad = _safe_avg(cad_v) if cad_v else None
+            avg_hr  = safe_avg(hr_v)  if hr_v  else None
+            avg_cad = safe_avg(cad_v) if cad_v else None
 
             cum_b   = [b for b in bursts if round(b["duration"]) >= dur]
             cum_cnt = len(cum_b)
@@ -342,12 +335,7 @@ def build_excel(
         threshold      = res["threshold"]
         color          = res.get("color", "#888888")
         bursts         = res.get("bursts", [])
-        duration_counts: dict = res.get("duration_counts", {})
-
-        if not duration_counts:
-            for b in bursts:
-                dur = round(b["duration"])
-                duration_counts[dur] = duration_counts.get(dur, 0) + 1
+        duration_counts = _get_duration_counts(res.get("duration_counts"), bursts)
 
         sheet_name = f"≥{round(threshold)}W"[:31]
         ws = wb.create_sheet(sheet_name)
@@ -356,18 +344,18 @@ def build_excel(
         light  = _lighten(color, 0.70)
         vlight = _lighten(color, 0.87)
 
-        avg_pow_all = _safe_avg([b["avg_power"] for b in bursts]) if bursts else 0
-        avg_hr_all  = _safe_avg([b["avg_hr"]  for b in bursts if b.get("avg_hr")])  or None
-        avg_cad_all = _safe_avg([b["avg_cadence"] for b in bursts if b.get("avg_cadence")]) or None
+        avg_pow_all = safe_avg([b["avg_power"] for b in bursts]) if bursts else 0
+        avg_hr_all  = safe_avg([b["avg_hr"]  for b in bursts if b.get("avg_hr")])  or None
+        avg_cad_all = safe_avg([b["avg_cadence"] for b in bursts if b.get("avg_cadence")]) or None
         total_time  = sum(b["duration"] for b in bursts)
 
         title_txt = (
             f"≥{round(threshold)} W  ·  {len(bursts)} bursts  ·  "
-            f"Tot: {_fmt_time(total_time)}  ·  "
+            f"Tot: {fmt_time(total_time)}  ·  "
             f"Avg Power: {avg_pow_all:.0f}W  ·  "
             f"Avg HR: {avg_hr_all:.0f} bpm" if avg_hr_all else
             f"≥{round(threshold)} W  ·  {len(bursts)} bursts  ·  "
-            f"Tot: {_fmt_time(total_time)}  ·  "
+            f"Tot: {fmt_time(total_time)}  ·  "
             f"Avg Power: {avg_pow_all:.0f}W"
         )
         _write_title(ws, title_txt, "A1:H1", argb)
@@ -393,20 +381,20 @@ def build_excel(
             bd    = [b for b in bursts if round(b["duration"]) == dur]
 
             total_d  = sum(b["duration"] for b in bd)
-            avg_pw   = _safe_avg([b["avg_power"] for b in bd])
+            avg_pw   = safe_avg([b["avg_power"] for b in bd])
             hr_v     = [b["avg_hr"]       for b in bd if b.get("avg_hr")]
             cad_v    = [b["avg_cadence"]  for b in bd if b.get("avg_cadence")]
-            avg_hr   = _safe_avg(hr_v)  if hr_v  else None
-            avg_cad  = _safe_avg(cad_v) if cad_v else None
+            avg_hr   = safe_avg(hr_v)  if hr_v  else None
+            avg_cad  = safe_avg(cad_v) if cad_v else None
 
             cum_b   = [b for b in bursts if round(b["duration"]) >= dur]
             cum_cnt = len(cum_b)
             cum_dur = sum(b["duration"] for b in cum_b)
 
-            row_vals   = [f"{dur}s", count, _fmt_time(total_d),
+            row_vals   = [f"{dur}s", count, fmt_time(total_d),
                           f"{avg_pw:.0f}", f"{avg_hr:.0f}" if avg_hr else "—",
                           f"{avg_cad:.0f}" if avg_cad else "—",
-                          cum_cnt, _fmt_time(cum_dur)]
+                          cum_cnt, fmt_time(cum_dur)]
 
             bg_map   = {2: light, 3: light, 7: light, 8: light}
             tc_map   = {
@@ -464,7 +452,7 @@ def build_excel(
         for b in res.get("bursts", []):
             hour = b.get("hour", "")
             if not hour or hour == "undefined":
-                hour = _fmt_time(b.get("start_time", 0))
+                hour = fmt_time(b.get("start_time", 0))
 
             row_vals = [
                 f"≥{round(threshold)}W",

@@ -195,7 +195,7 @@
 
   .threshold-selector { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
   .threshold-btn {
-    background:transparent; border:1px solid var(--border2); color:var(--muted2);
+    background:transparent; color:var(--muted2); border:1px solid var(--border2);
     border-radius:6px; padding:8px 14px; cursor:pointer;
     font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
     transition: color .2s, border-color .2s, background .2s;
@@ -429,6 +429,24 @@
   ::-webkit-scrollbar-track { background:var(--bg); }
   ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
 
+  /* ─── CSS UTILITY CLASSES ─── */
+  .mono { font-family:'IBM Plex Mono',monospace; }
+  .mono-sm { font-family:'IBM Plex Mono',monospace; font-size:10px; }
+  .mono-xs { font-family:'IBM Plex Mono',monospace; font-size:9px; }
+  .uppercase { text-transform:uppercase; letter-spacing:0.8px; }
+  .uppercase-sm { text-transform:uppercase; letter-spacing:1px; }
+  
+  .c-accent { color:var(--accent); }
+  .c-green { color:var(--green); }
+  .c-red { color:var(--red); }
+  .c-blue { color:var(--blue); }
+  .c-purple { color:#c084fc; }
+  .c-muted { color:var(--muted2); }
+  .c-text { color:var(--text); }
+  .fw-700 { font-weight:700; }
+  .fw-600 { font-weight:600; }
+  
+  /* ─── MEDIA QUERIES ─── */
   @media (max-width:860px) {
     .sidebar { grid-template-columns:1fr; }
     .main { padding:18px 14px; }
@@ -479,7 +497,6 @@
       <div class="processing-state" id="processingState">
         <div class="spinner"></div><span>Elaborazione...</span>
       </div>
-      <button class="export-btn" id="exportBtn" disabled>⬇ Esporta CSV (tutte le soglie)</button>
       <button class="ws-btn" id="recalcBtn">↻ Ricalcola Stesso FIT</button>
       <button class="ws-btn" id="backToUploadBtn">← Carica Altro FIT</button>
     </div>
@@ -632,9 +649,7 @@ function applyGenderPreset(preset){
 
 // ── HELPERS ───────────────────────────────────────────────
 const fmtTime = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.round(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`:String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); };
-const fmtDur  = s => { const m=Math.floor(s/60),r=Math.round(s%60); return m>0?`${m}m ${r}s`:`${r}s`; };
 const fmtMmSs = s => { const m=Math.floor(s/60),r=Math.round(s%60); return `${m}:${String(r).padStart(2,'0')}`; };
-const hexToRgb = (hex) => { const result=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); return result ? `${parseInt(result[1],16)},${parseInt(result[2],16)},${parseInt(result[3],16)}` : '0,0,0'; };
 
 function parseThresholdCsv(text){
   const vals=String(text||'').split(',').map(s=>Math.round(+s.trim())).filter(v=>Number.isFinite(v)&&v>=50&&v<=2000);
@@ -752,25 +767,28 @@ function getStrongestBurstKey(){
 }
 
 // ── SLIDERS ───────────────────────────────────────────────
-['minDurSlider','mergeGapSlider'].forEach(id=>{
-  const sl=document.getElementById(id);
-  const vl=document.getElementById(id.replace('Slider','Val'));
-  sl.addEventListener('input',()=>{ vl.textContent=sl.value; syncConfigViews(); });
-  vl.textContent=sl.value;
-});
-['homeMinDurSlider','homeMergeGapSlider'].forEach(id=>{
-  const sl=document.getElementById(id);
-  const vl=document.getElementById(id.replace('Slider','Val'));
-  sl.addEventListener('input',()=>{
+function syncSlider(idPairs){
+  idPairs.forEach(([primary,secondary])=>{
+    const sl=document.getElementById(primary);
+    const vl=document.getElementById(primary.replace('Slider','Val'));
+    const slHome=document.getElementById(secondary);
+    const vlHome=document.getElementById(secondary.replace('Slider','Val'));
+    
+    const updateAll=(val)=>{
+      vl.textContent=val;
+      vlHome.textContent=val;
+      sl.value=val;
+      slHome.value=val;
+      syncConfigViews();
+    };
+    
+    sl.addEventListener('input',()=>updateAll(sl.value));
+    slHome.addEventListener('input',()=>updateAll(slHome.value));
     vl.textContent=sl.value;
-    const targetId=id==='homeMinDurSlider'?'minDurSlider':'mergeGapSlider';
-    const target=document.getElementById(targetId);
-    target.value=sl.value;
-    document.getElementById(targetId.replace('Slider','Val')).textContent=sl.value;
-    syncConfigViews();
+    vlHome.textContent=slHome.value;
   });
-  vl.textContent=sl.value;
-});
+}
+syncSlider([['minDurSlider','homeMinDurSlider'],['mergeGapSlider','homeMergeGapSlider']]);
 
 // ── FILE LOAD ─────────────────────────────────────────────
 function showFitBadge(filename){
@@ -785,7 +803,6 @@ function loadFit(file){
   currentFitFile=file;
   document.getElementById('parseMsg').innerHTML='';
   document.getElementById('runBtn').disabled=false;
-  document.getElementById('exportBtn').disabled=true;
   showFitBadge(file.name);
 }
 
@@ -815,7 +832,6 @@ async function runAnalysis(){
   thresholds.forEach((t,i)=>t.color=PALETTE[i%PALETTE.length]);
   document.getElementById('processingState').classList.add('active');
   document.getElementById('runBtn').disabled=true;
-  document.getElementById('exportBtn').disabled=true;
 
   try{
     const serverData=await analyzeViaServer(currentFitFile,minDur,mergeGap);
@@ -840,7 +856,6 @@ async function runAnalysis(){
   renderPowerTimeline();
   document.getElementById('processingState').classList.remove('active');
   document.getElementById('runBtn').disabled=false;
-  document.getElementById('exportBtn').disabled=false;
 }
 
 function burstKey(threshold,b){ return `${threshold}_${b.seg_start}_${b.seg_end}`; }
@@ -873,7 +888,6 @@ function backToUploadFlow(){
   document.getElementById('resultsArea').style.display='none';
   document.getElementById('parseMsg').innerHTML='';
   document.getElementById('runBtn').disabled=true;
-  document.getElementById('exportBtn').disabled=true;
   const badge=document.getElementById('fitLoadedBadge');
   if(badge) badge.classList.remove('visible');
   currentFitFile=null;
@@ -930,10 +944,9 @@ function renderDurationGridForThreshold(res, tablesArea){
   const header=document.createElement('div');
   header.className='duration-grid-header';
   
-  // Crea recap per questa soglia
-  const avgPowSoglia=bursts.length?(bursts.reduce((a,b)=>a+b.avg_power,0)/bursts.length).toFixed(0):'-';
-  const avgHrSoglia=bursts.length?bursts.filter(b=>b.avg_hr).length>0?(bursts.reduce((a,b)=>a+(b.avg_hr||0),0)/bursts.filter(b=>b.avg_hr).length).toFixed(0):'-':'-';
-  const avgCadSoglia=bursts.length?bursts.filter(b=>b.avg_cadence).length>0?(bursts.reduce((a,b)=>a+(b.avg_cadence||0),0)/bursts.filter(b=>b.avg_cadence).length).toFixed(0):'-':'-';
+  // Calcola metriche per questa soglia
+  const m=calcMetricsForBursts(bursts);
+  const avgPowSoglia=m.avgPow, avgHrSoglia=m.avgHr, avgCadSoglia=m.avgCad;
   const totalDurSoglia=bursts.reduce((a,b)=>a+b.duration,0);
   const totalDurSogliaFmt=fmtTime(totalDurSoglia);
   
@@ -992,11 +1005,10 @@ function renderDurationGridForThreshold(res, tablesArea){
     sortedDurations.forEach(dur=>{
       const count=duration_counts[dur];
       
-      // Calcola metriche per questa durata
+      // Filtra burst di questa durata
       const burstsForThisDur=bursts.filter(b=>Math.round(b.duration)===dur);
-      const avgPowDur=burstsForThisDur.length?(burstsForThisDur.reduce((a,b)=>a+b.avg_power,0)/burstsForThisDur.length).toFixed(0):'-';
-      const avgHrDur=burstsForThisDur.filter(b=>b.avg_hr).length>0?(burstsForThisDur.reduce((a,b)=>a+(b.avg_hr||0),0)/burstsForThisDur.filter(b=>b.avg_hr).length).toFixed(0):'-';
-      const avgCadDur=burstsForThisDur.filter(b=>b.avg_cadence).length>0?(burstsForThisDur.reduce((a,b)=>a+(b.avg_cadence||0),0)/burstsForThisDur.filter(b=>b.avg_cadence).length).toFixed(0):'-';
+      const m2=calcMetricsForBursts(burstsForThisDur);
+      const avgPowDur=m2.avgPow, avgHrDur=m2.avgHr, avgCadDur=m2.avgCad;
       
       // Calcola durata totale dei burst ESATTI di questa durata
       const totalDurExact=burstsForThisDur.reduce((a,b)=>a+b.duration,0);
@@ -1102,9 +1114,8 @@ function renderBurstsForDuration(duration,res,color,container){
   if(!burstsForDur.length) return;
 
   // Calcola metriche per questa durata
-  const avgPowDur=burstsForDur.length?(burstsForDur.reduce((a,b)=>a+b.avg_power,0)/burstsForDur.length).toFixed(0):'-';
-  const avgHrDur=burstsForDur.filter(b=>b.avg_hr).length>0?(burstsForDur.reduce((a,b)=>a+(b.avg_hr||0),0)/burstsForDur.filter(b=>b.avg_hr).length).toFixed(0):'-';
-  const avgCadDur=burstsForDur.filter(b=>b.avg_cadence).length>0?(burstsForDur.reduce((a,b)=>a+(b.avg_cadence||0),0)/burstsForDur.filter(b=>b.avg_cadence).length).toFixed(0):'-';
+  const m3=calcMetricsForBursts(burstsForDur);
+  const avgPowDur=m3.avgPow, avgHrDur=m3.avgHr, avgCadDur=m3.avgCad;
 
   const header=document.createElement('div');
   header.className='burst-list-header';
@@ -1195,16 +1206,13 @@ function renderBurstsForDuration(duration,res,color,container){
   renderPowerTimeline();
 }
 
-// ── TABLES (OLD - NON USATO) ──────────────────────────────
-/*
-function renderAllTables(){
-  const area=document.getElementById('tablesArea');
-  area.innerHTML='';
-  allResults.forEach(res=>buildTable(res,area));
+// ── METRIC HELPERS ────────────────────────────────────────
+function calcMetricsForBursts(bursts){
+  const avgPow=bursts.length?(bursts.reduce((a,b)=>a+b.avg_power,0)/bursts.length).toFixed(0):'-';
+  const avgHr=bursts.filter(b=>b.avg_hr).length>0?(bursts.reduce((a,b)=>a+(b.avg_hr||0),0)/bursts.filter(b=>b.avg_hr).length).toFixed(0):'-';
+  const avgCad=bursts.filter(b=>b.avg_cadence).length>0?(bursts.reduce((a,b)=>a+(b.avg_cadence||0),0)/bursts.filter(b=>b.avg_cadence).length).toFixed(0):'-';
+  return {avgPow,avgHr,avgCad};
 }
-function buildTable({threshold,color,bursts},container){ ... }
-function fillTbody(tbody,bursts,ss,maxPow,color,threshold){ ... }
-*/
 
 // ── POWER TIMELINE ────────────────────────────────────────
 function renderPowerTimeline(){
@@ -1419,15 +1427,6 @@ function buildSprintStreamCharts(){
   cv1.style('display',null).attr('x1',midX).attr('x2',midX);
 }
 
-// ── EXPORT ────────────────────────────────────────────────
-document.getElementById('exportBtn').addEventListener('click',()=>{
-  if(!allResults.length) return;
-  const lines=['Soglia_W;#;Inizio;Durata_s;Avg_W;Max_W;Min_W;Delta_W;HR_avg;Cad_avg'];
-  allResults.forEach(({threshold,bursts})=>bursts.forEach(b=>lines.push([threshold,b.rank,(b.hour&&b.hour!=='undefined')?b.hour:fmtTime(b.start_time||0),b.duration,b.avg_power,b.max_power,b.min_power,b.delta_above.toFixed(1),b.avg_hr??'',b.avg_cadence??''].join(';'))));
-  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='burst_multi_soglia.csv';a.click();URL.revokeObjectURL(a.href);
-});
-
 function showExportMessage(msg){
   const div=document.createElement('div');
   div.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e1b4b;color:#00ff00;padding:20px 30px;border:2px solid #00ff00;border-radius:8px;font-size:16px;font-weight:bold;z-index:9999;box-shadow:0 0 20px rgba(0,255,0,0.5);';
@@ -1501,24 +1500,45 @@ document.getElementById('reverseOrderBtn').addEventListener('click',reverseThres
 
 // ── FILE INPUTS ───────────────────────────────────────────
 document.getElementById('runBtn').addEventListener('click',runAnalysis);
-const fitInput=document.getElementById('fitInput');
-const uploadZone=document.getElementById('uploadZone');
-fitInput.addEventListener('change',()=>{ if(fitInput.files[0]) loadFit(fitInput.files[0]); });
-uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('drag');});
-uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('drag'));
-uploadZone.addEventListener('drop',e=>{ e.preventDefault();uploadZone.classList.remove('drag'); const f=e.dataTransfer.files[0]; if(f&&f.name.toLowerCase().endsWith('.fit')) loadFit(f); });
 
-document.getElementById('recalcBtn').addEventListener('click',()=>{ if(!currentFitFile){document.getElementById('parseMsg').innerHTML='<div class="msg error">Nessun FIT corrente da ricalcolare.</div>';return;} runAnalysis(); });
-document.getElementById('backToUploadBtn').addEventListener('click',backToUploadFlow);
+// Helper per gestione file input unificate
+function setupFileUpload(inputId, zoneId, onLoad){
+  const input=document.getElementById(inputId);
+  const zone=document.getElementById(zoneId);
+  if(!input||!zone) return;
+  
+  input.addEventListener('change',()=>{ if(input.files[0]) onLoad(input.files[0]); });
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag'));
+  zone.addEventListener('drop',e=>{
+    e.preventDefault();
+    zone.classList.remove('drag');
+    const f=e.dataTransfer.files[0];
+    if(f&&f.name.toLowerCase().endsWith('.fit')) onLoad(f);
+  });
+}
 
-const fitInputHome=document.getElementById('fitInputHome');
-const uploadZoneHome=document.getElementById('uploadZoneHome');
-document.getElementById('homePickBtn').addEventListener('click',()=>{ applyConfigFrom('home'); fitInputHome.click(); });
-fitInputHome.addEventListener('change',()=>{ if(!fitInputHome.files[0]) return; applyConfigFrom('home'); loadFit(fitInputHome.files[0]); document.getElementById('homeAnalizzaBtn').disabled=false; });
-uploadZoneHome.addEventListener('dragover',e=>{e.preventDefault();uploadZoneHome.classList.add('drag');});
-uploadZoneHome.addEventListener('dragleave',()=>uploadZoneHome.classList.remove('drag'));
-uploadZoneHome.addEventListener('drop',e=>{ e.preventDefault();uploadZoneHome.classList.remove('drag'); const f=e.dataTransfer.files[0]; if(f&&f.name.toLowerCase().endsWith('.fit')){ applyConfigFrom('home'); loadFit(f); document.getElementById('homeAnalizzaBtn').disabled=false; } });
+// Setup sidebar file upload
+setupFileUpload('fitInput','uploadZone',f=>loadFit(f));
+
+// Setup home file upload
+setupFileUpload('fitInputHome','uploadZoneHome',f=>{
+  applyConfigFrom('home');
+  loadFit(f);
+  document.getElementById('homeAnalizzaBtn').disabled=false;
+});
+
+document.getElementById('homePickBtn').addEventListener('click',()=>{
+  applyConfigFrom('home');
+  document.getElementById('fitInputHome').click();
+});
+
 document.getElementById('homeAnalizzaBtn').addEventListener('click',runAnalysis);
+document.getElementById('recalcBtn').addEventListener('click',()=>{
+  if(!currentFitFile){document.getElementById('parseMsg').innerHTML='<div class="msg error">Nessun FIT corrente da ricalcolare.</div>';return;}
+  runAnalysis();
+});
+document.getElementById('backToUploadBtn').addEventListener('click',backToUploadFlow);
 
 document.getElementById('wsRecalcBtn').addEventListener('click',()=>{ 
   if(!currentFitFile){document.getElementById('parseMsg').innerHTML='<div class="msg error">Nessun FIT corrente da ricalcolare.</div>';return;}

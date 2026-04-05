@@ -1,45 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
 from io import BytesIO
 from typing import Any
 
 from fitparse import FitFile
 
-
-def _to_number(value: Any) -> float | int | None:
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return value
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _to_timestamp(value: Any) -> int | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return int(value.timestamp())
-    if isinstance(value, (int, float)):
-        return int(value)
-    return None
-
-
-def avg(values: list[float | int]) -> float:
-    return (sum(values) / len(values)) if values else 0.0
-
-
-def fmt_time(seconds: float) -> str:
-    total = int(round(seconds))
-    h = total // 3600
-    m = (total % 3600) // 60
-    s = total % 60
-    if h > 0:
-        return f"{h}:{m:02d}:{s:02d}"
-    return f"{m:02d}:{s:02d}"
+from backend.utils import avg, fmt_time, to_number, to_timestamp
 
 
 def parse_fit_records(file_bytes: bytes) -> list[dict[str, Any]]:
@@ -49,17 +15,17 @@ def parse_fit_records(file_bytes: bytes) -> list[dict[str, Any]]:
     for record in fit.get_messages("record"):
         values: dict[str, Any] = {field.name: field.value for field in record}
 
-        power = _to_number(values.get("power"))
+        power = to_number(values.get("power"))
         if power is None:
             continue
 
         rec = {
-            "timestamp": _to_timestamp(values.get("timestamp")),
+            "timestamp": to_timestamp(values.get("timestamp")),
             "power": power,
-            "heartrate": _to_number(values.get("heart_rate")),
-            "cadence": _to_number(values.get("cadence")),
-            "distance": _to_number(values.get("distance")),
-            "altitude": _to_number(values.get("enhanced_altitude") or values.get("altitude")),
+            "heartrate": to_number(values.get("heart_rate")),
+            "cadence": to_number(values.get("cadence")),
+            "distance": to_number(values.get("distance")),
+            "altitude": to_number(values.get("enhanced_altitude") or values.get("altitude")),
         }
         records.append(rec)
 
@@ -74,11 +40,18 @@ def parse_fit_records(file_bytes: bytes) -> list[dict[str, Any]]:
     return records
 
 
-def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int, merge_gap: int) -> list[dict[str, Any]]:
+def _find_and_merge_burst_segments(
+    records: list[dict[str, Any]], threshold: float, merge_gap: int
+) -> list[dict[str, int]]:
+    """Find all segments above threshold and merge nearby ones.
+    
+    Returns list of segments: [{"s": start_idx, "e": end_idx}, ...]
+    """
     segs: list[dict[str, int]] = []
     in_burst = False
     burst_start = 0
 
+    # Find all segments above threshold
     for i, rec in enumerate(records):
         if rec["power"] >= threshold and not in_burst:
             in_burst = True
@@ -90,6 +63,7 @@ def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int,
     if in_burst:
         segs.append({"s": burst_start, "e": len(records) - 1})
 
+    # Merge nearby segments
     merged: list[dict[str, int]] = []
     for seg in segs:
         if not merged:
@@ -101,6 +75,12 @@ def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int,
             last["e"] = seg["e"]
         else:
             merged.append(seg.copy())
+
+    return merged
+
+
+def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int, merge_gap: int) -> list[dict[str, Any]]:
+    merged = _find_and_merge_burst_segments(records, threshold, merge_gap)
 
     bursts: list[dict[str, Any]] = []
     for idx, seg in enumerate(merged):
@@ -145,48 +125,18 @@ def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int,
 
 
 def count_bursts_by_exact_duration(records: list[dict[str, Any]], threshold: float, merge_gap: int) -> dict[int, int]:
-    """Conteggia i burst per ESATTA durata (non per "almeno").
+    """Count bursts by exact duration (no minimum duration filter).
     
-    Trova TUTTI i burst (nessun filtro di durata minima), li raggruppa per durata esatta,
-    e conta le occorrenze. Restituisce dict {duration_sec: count}.
+    Returns dict {duration_sec: count}.
     """
-    segs: list[dict[str, int]] = []
-    in_burst = False
-    burst_start = 0
+    merged = _find_and_merge_burst_segments(records, threshold, merge_gap)
 
-    # Rileva tutti i segmenti sopra soglia
-    for i, rec in enumerate(records):
-        if rec["power"] >= threshold and not in_burst:
-            in_burst = True
-            burst_start = i
-        elif rec["power"] < threshold and in_burst:
-            in_burst = False
-            segs.append({"s": burst_start, "e": i - 1})
-
-    if in_burst:
-        segs.append({"s": burst_start, "e": len(records) - 1})
-
-    # Merge burst vicini (gap <= merge_gap)
-    merged: list[dict[str, int]] = []
-    for seg in segs:
-        if not merged:
-            merged.append(seg.copy())
-            continue
-
-        last = merged[-1]
-        if records[seg["s"]]["time_sec"] - records[last["e"]]["time_sec"] <= merge_gap:
-            last["e"] = seg["e"]
-        else:
-            merged.append(seg.copy())
-
-    # Conta per esatta durata: un burst di 10s conta SOLO in "10s", non in "4s", "5s", ecc.
+    # Count by exact duration
     duration_counts: dict[int, int] = {}
     for seg in merged:
         s = seg["s"]
         e = seg["e"]
         duration = round(records[e]["time_sec"] - records[s]["time_sec"])
-        
-        # Conteggia TUTTI i burst (nessun filtro), per esatta durata
         duration_counts[duration] = duration_counts.get(duration, 0) + 1
     
     return duration_counts
