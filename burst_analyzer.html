@@ -98,7 +98,7 @@
     background:var(--accent); border:2px solid var(--bg); box-shadow:0 0 0 1px var(--accent); cursor:pointer;
   }
 
-  .thresholds-list { display:flex; flex-direction:column; gap:8px; max-height:170px; overflow:auto; padding-right:4px; }
+  .thresholds-list { display:flex; flex-direction:column; gap:8px; max-height:340px; overflow:auto; padding-right:4px; }
 
   .thr-row {
     display:grid;
@@ -495,6 +495,12 @@
             </div>
           </div>
           <div>
+            <div class="sec-title">Profilo</div>
+            <div class="threshold-selector" id="genderSelector">
+              <button class="threshold-btn active" data-preset="female" title="Femminile: 300, 350, 400W">👩 Femminile</button>
+              <button class="threshold-btn" data-preset="male" title="Maschile: 400, 450, 500, 600W">👨 Maschile</button>
+            </div>
+
             <div class="sec-title">Soglie Anaerobiche</div>
             <div class="thresholds-list" id="homeThrList"></div>
             <button class="add-thr-btn" id="homeAddThrBtn">+ Aggiungi Soglia</button>
@@ -578,10 +584,16 @@
 const PALETTE = ['#f0c040','#4da6ff','#3ccf7e','#e05a2b','#c084fc','#fb7185','#34d399','#fbbf24'];
 const API_BASE = 'http://127.0.0.1:8010';
 
+// ── GENDER PRESETS ────────────────────────────────────────
+const GENDER_PRESETS = {
+  female: {label:'👩 Femminile', thresholds:[300,350,400,450]},
+  male:   {label:'👨 Maschile', thresholds:[400,450,500,600]}
+};
+
 // ── STATE ─────────────────────────────────────────────────
 let rawRecords = [];
-let thresholds = [{watt:300,id:1},{watt:350,id:2},{watt:400,id:3}];
-let nextId = 4;
+let thresholds = GENDER_PRESETS.female.thresholds.map((watt, i) => ({watt, id: i+1}));
+let nextId = thresholds.length + 1;
 let allResults = [];
 let sortStates = {};
 let collapseStates = {};
@@ -590,6 +602,20 @@ let activeTab = 'tab-list';
 let selectedBurstKey = null;
 let streamModalData = null;
 let powerZoomTransform = d3.zoomIdentity;
+
+function applyGenderPreset(preset){
+  if(!GENDER_PRESETS[preset]) return;
+  const watts = GENDER_PRESETS[preset].thresholds;
+  thresholds = watts.map((watt,i) => ({watt, id: i+1}));
+  nextId = thresholds.length + 1;
+  renderThrList();
+  syncConfigViews();
+  
+  // Update active button
+  document.querySelectorAll('#genderSelector .threshold-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === preset);
+  });
+}
 
 // ── HELPERS ───────────────────────────────────────────────
 const fmtTime = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.round(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`:String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); };
@@ -693,6 +719,15 @@ document.getElementById('homeAddThrBtn').addEventListener('click',()=>{
   thresholds.push({watt:last+10,id:nextId++});
   renderThrList();
 });
+
+// ── GENDER SELECTOR ───────────────────────────────────────
+document.querySelectorAll('#genderSelector .threshold-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    const preset = e.target.dataset.preset;
+    applyGenderPreset(preset);
+  });
+});
+
 renderThrList();
 
 function getStrongestBurstKey(){
