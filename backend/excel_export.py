@@ -238,7 +238,7 @@ def build_excel(
             ("Avg HR (bpm)",   14),
             ("Avg Cad (rpm)",  14),
             ("Tot ≥ Count",    13),
-            ("Tot Time",       13),
+            ("Tot ≥ Time",     13),
         ]
         _write_header_row(ws, 2, GRID_COLS)
 
