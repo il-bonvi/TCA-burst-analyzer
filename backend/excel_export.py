@@ -143,11 +143,11 @@ def build_excel(
 
     SUM_COLS = [
         ("Threshold",    16),
-        ("Bursts #",     11),
-        ("Total Time",   14),
-        ("Avg Power",    13),
-        ("Avg HR",       12),
-        ("Avg Cad",  14),
+        ("#",     11),
+        ("t",   14),
+        ("Pwr",    13),
+        ("HR",       12),
+        ("Cad",  14),
     ]
     _write_header_row(ws_sum, 2, SUM_COLS)
     
@@ -331,9 +331,9 @@ def build_excel(
 
     # ── Set column widths for the transposed grid ──────────
     ws_sum.column_dimensions["A"].width = 14  # threshold label
-    for d_idx in range(len(all_durations)):
-        col_letter = get_column_letter(d_idx + 2)
-        ws_sum.column_dimensions[col_letter].width = 11
+    # Set summary columns B onward to 50px (Excel width ~7.2)
+    for col_idx in range(2, ws_sum.max_column + 1):
+        ws_sum.column_dimensions[get_column_letter(col_idx)].width = 7.2
 
     ws_sum.freeze_panes = "A1"
 
