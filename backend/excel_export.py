@@ -182,8 +182,8 @@ def build_excel(
             n,
             fmt_time(total_dur),
             f"{avg_power:.0f} W",
-            f"{avg_hr:.0f} bpm"  if avg_hr  else "—",
-            f"{avg_cad:.0f} rpm" if avg_cad else "—",
+            f"{avg_hr:.0f}"  if avg_hr  else "—",
+            f"{avg_cad:.0f}" if avg_cad else "—",
         ]
         text_colors = [T_DARK, T_DARK, C_TIME, C_WATT, C_HR, C_CAD]
         bolds       = [True,   True,   True,   True,   True, True]
