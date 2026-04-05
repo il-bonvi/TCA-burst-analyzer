@@ -22,10 +22,11 @@ BG_WHITE  = "FFFFFFFF"   # pure white cell bg (used for "All Bursts" alt rows)
 C_WATT    = "FFC084FC"   # purple — power / watt values
 C_HR      = "FFEF4444"   # red    — heart rate
 C_CAD     = "FF4DA6FF"   # blue   — cadence
-C_TIME    = "FF3CCF7E"   # green  — time / duration
+C_TIME    = "00B050"   # green  — time / duration
 C_DELTA   = "FF3CCF7E"   # green  — delta above threshold
 C_MAX     = "FF9555CC"   # deep purple — max power
 C_MIN     = "FFD9A8FF"   # light lavender — min power
+C_TOT     = "FFE91E63"   # pink-magenta — tot >= metrics
 
 # Text colors
 T_WHITE   = "FFFFFFFF"
@@ -108,11 +109,11 @@ def _write_header_row(ws, row: int, columns: list[tuple[str, int]]) -> None:
     ws.row_dimensions[row].height = 20
 
 
-def _write_title(ws, text: str, span: str, fill_argb: str, row: int = 1) -> None:
+def _write_title(ws, text: str, span: str, fill_argb: str, row: int = 1, title_color: str = T_WHITE) -> None:
     ws.merge_cells(span)
     cell = ws[span.split(":")[0]]
     cell.value = text
-    cell.font  = _font(color=T_WHITE, bold=True, size=12)
+    cell.font  = _font(color=title_color, bold=True, size=12)
     cell.fill  = _fill(fill_argb)
     cell.alignment = _left(indent=1)
     ws.row_dimensions[row].height = 26
@@ -146,9 +147,12 @@ def build_excel(
         ("Total Time",   14),
         ("Avg Power",    13),
         ("Avg HR",       12),
-        ("Avg Cadence",  14),
+        ("Avg Cad",  14),
     ]
     _write_header_row(ws_sum, 2, SUM_COLS)
+    
+    # Fix Threshold header to be white text
+    ws_sum["A2"].font = _font(color=T_WHITE, bold=True, size=10)
 
     for res in all_results:
         threshold = res["threshold"]
@@ -177,22 +181,161 @@ def build_excel(
             f"{avg_hr:.0f} bpm"  if avg_hr  else "—",
             f"{avg_cad:.0f} rpm" if avg_cad else "—",
         ]
-        # Per-column colors matching the HTML palette
         text_colors = [T_DARK, T_DARK, C_TIME, C_WATT, C_HR, C_CAD]
         bolds       = [True,   True,   True,   True,   True, True]
 
         for col_idx, (val, tc, bold) in enumerate(zip(values, text_colors, bolds), start=1):
             cell = ws_sum.cell(row=row_num, column=col_idx, value=val)
-            # Threshold column: use the threshold accent color as bg
             bg = bg_thr if col_idx == 1 else bg_row
-            fg = T_WHITE if col_idx == 1 else tc
+            fg = T_DARK if col_idx == 1 else tc
             cell.fill      = _fill(bg)
             cell.font      = _font(color=fg, bold=bold, size=10)
             cell.alignment = _center()
             cell.border    = _border()
         ws_sum.row_dimensions[row_num].height = 19
 
-    ws_sum.freeze_panes = "A3"
+    # ── SEPARATOR ROW ──────────────────────────────────────
+    sep_row = ws_sum.max_row + 2   # 1 empty row gap
+    ws_sum.row_dimensions[sep_row - 1].height = 10  # spacer row
+
+    # ── TRANSPOSED ALL-THRESHOLDS GRID ────────────────────
+    # Process results in DESCENDING threshold order
+    ordered_results = sorted(all_results, key=lambda r: r["threshold"], reverse=True)
+
+    # Collect all unique durations across all thresholds (>= min_dur), sorted ascending
+    all_durations: list[int] = []
+    for res in ordered_results:
+        duration_counts = res.get("duration_counts", {})
+        if not duration_counts:
+            for b in res.get("bursts", []):
+                dur = round(b["duration"])
+                if dur not in duration_counts:
+                    duration_counts[dur] = 0
+                duration_counts[dur] += 1
+        for d in duration_counts.keys():
+            dur_int = int(d)
+            if dur_int >= min_dur and dur_int not in all_durations:
+                all_durations.append(dur_int)
+    all_durations.sort()
+
+    # Metric rows definition: (label, metric_key, color, format_fn)
+    METRIC_ROWS = [
+        ("Count",         "count",     C_TIME, lambda v, _: str(int(v)) if v else "—"),
+        ("Total Time",    "tot_time",  C_TIME, lambda v, _: _fmt_time(v) if v else "—"),
+        ("Avg Power (W)", "avg_pow",   C_WATT, lambda v, _: f"{v:.0f}" if v else "—"),
+        ("Avg HR (bpm)",  "avg_hr",    C_HR,   lambda v, _: f"{v:.0f}" if v else "—"),
+        ("Avg Cad (rpm)", "avg_cad",   C_CAD,  lambda v, _: f"{v:.0f}" if v else "—"),
+        ("Tot ≥ Count",   "cum_cnt",   C_TOT,  lambda v, _: str(int(v)) if v else "—"),
+        ("Tot ≥ Time",    "cum_time",  C_TOT,  lambda v, _: _fmt_time(v) if v else "—"),
+    ]
+
+    current_row = sep_row
+
+    for res_idx, res in enumerate(ordered_results):
+        threshold = res["threshold"]
+        color     = res.get("color", "#888888")
+        bursts    = res.get("bursts", [])
+        duration_counts = res.get("duration_counts", {})
+        if not duration_counts:
+            duration_counts = {}
+            for b in bursts:
+                dur = round(b["duration"])
+                duration_counts[dur] = duration_counts.get(dur, 0) + 1
+
+        argb    = _hex_to_argb(color)
+        light   = _lighten(color, 0.70)
+        vlight  = _lighten(color, 0.87)
+
+        # Compute stats per duration for this threshold
+        dur_stats: dict[int, dict] = {}
+        for dur in all_durations:
+            count = duration_counts.get(dur, duration_counts.get(str(dur), 0))
+            if count == 0:
+                # duration not present for this threshold
+                dur_stats[dur] = None
+                continue
+
+            bd = [b for b in bursts if round(b["duration"]) == dur]
+            total_d = sum(b["duration"] for b in bd)
+            avg_pw  = _safe_avg([b["avg_power"]   for b in bd])
+            hr_v    = [b["avg_hr"]      for b in bd if b.get("avg_hr")]
+            cad_v   = [b["avg_cadence"] for b in bd if b.get("avg_cadence")]
+            avg_hr  = _safe_avg(hr_v)  if hr_v  else None
+            avg_cad = _safe_avg(cad_v) if cad_v else None
+
+            cum_b   = [b for b in bursts if round(b["duration"]) >= dur]
+            cum_cnt = len(cum_b)
+            cum_dur = sum(b["duration"] for b in cum_b)
+
+            dur_stats[dur] = {
+                "count":   count,
+                "tot_time": total_d,
+                "avg_pow":  avg_pw,
+                "avg_hr":   avg_hr,
+                "avg_cad":  avg_cad,
+                "cum_cnt":  cum_cnt,
+                "cum_time": cum_dur,
+            }
+
+        # ── Threshold label row (header with durations as columns) ──
+        header_row = current_row
+
+        # Col A: threshold label with soglia value (now in B)
+        cell_b = ws_sum.cell(row=header_row, column=1, value=f"≥{round(threshold)} W")
+        cell_b.font      = _font(color=T_DARK, bold=True, size=10)
+        cell_b.fill      = _fill(argb)
+        cell_b.alignment = _center()
+        cell_b.border    = _border(BORDER_H)
+        ws_sum.row_dimensions[header_row].height = 22
+
+        # Cols B+: one column per duration
+        for d_idx, dur in enumerate(all_durations):
+            col_num = d_idx + 2  # starts at col B
+            cell = ws_sum.cell(row=header_row, column=col_num, value=f"{dur}s")
+            cell.font      = _font(color=T_WHITE, bold=True, size=10)
+            cell.fill      = _fill(BG_HEAD)
+            cell.alignment = _center()
+            cell.border    = _border(BORDER_H)
+
+        # ── Metric rows ──
+        for m_idx, (m_label, m_key, m_color, m_fmt) in enumerate(METRIC_ROWS):
+            data_row = header_row + 1 + m_idx
+            row_bg   = light if m_key in ("count", "tot_time", "cum_cnt", "cum_time") else vlight
+
+            # Col A: metric label
+            cell_lbl = ws_sum.cell(row=data_row, column=1, value=m_label)
+            cell_lbl.font      = _font(color=T_WHITE, bold=True, size=9)
+            cell_lbl.fill      = _fill(BG_HEAD)
+            cell_lbl.alignment = _left(indent=1)
+            cell_lbl.border    = _border(BORDER_H)
+
+            # Cols B+: values per duration
+            for d_idx, dur in enumerate(all_durations):
+                col_num  = d_idx + 2
+                stats    = dur_stats.get(dur)
+                val_raw  = stats[m_key] if stats else None
+                val_str  = m_fmt(val_raw, dur) if val_raw is not None else "—"
+                fg       = m_color if (m_color and val_raw is not None) else (T_MUTED if val_raw is None else T_DARK)
+                cell = ws_sum.cell(row=data_row, column=col_num, value=val_str)
+                cell.font      = _font(color=fg, bold=(val_raw is not None), size=10)
+                cell.fill      = _fill(row_bg if val_raw is not None else vlight)
+                cell.alignment = _center()
+                cell.border    = _border()
+            ws_sum.row_dimensions[data_row].height = 17
+
+        current_row = header_row + len(METRIC_ROWS) + 1 + 1  # +1 for header row, +1 for spacer
+
+        # Spacer row between thresholds
+        if res_idx < len(ordered_results) - 1:
+            ws_sum.row_dimensions[current_row - 1].height = 8
+
+    # ── Set column widths for the transposed grid ──────────
+    ws_sum.column_dimensions["A"].width = 14  # threshold label
+    for d_idx in range(len(all_durations)):
+        col_letter = get_column_letter(d_idx + 2)
+        ws_sum.column_dimensions[col_letter].width = 11
+
+    ws_sum.freeze_panes = "A1"
 
     # ── SHEETS 2…N: PER-THRESHOLD DURATION GRID ───────────
     for res in all_results:
@@ -213,7 +356,6 @@ def build_excel(
         light  = _lighten(color, 0.70)
         vlight = _lighten(color, 0.87)
 
-        # Title + summary stats
         avg_pow_all = _safe_avg([b["avg_power"] for b in bursts]) if bursts else 0
         avg_hr_all  = _safe_avg([b["avg_hr"]  for b in bursts if b.get("avg_hr")])  or None
         avg_cad_all = _safe_avg([b["avg_cadence"] for b in bursts if b.get("avg_cadence")]) or None
@@ -266,18 +408,16 @@ def build_excel(
                           f"{avg_cad:.0f}" if avg_cad else "—",
                           cum_cnt, _fmt_time(cum_dur)]
 
-            # bg: accent-light for key cols, very-light otherwise
             bg_map   = {2: light, 3: light, 7: light, 8: light}
-            # text color per column
             tc_map   = {
-                1: _hex_to_argb(color),   # duration → threshold accent
-                2: _hex_to_argb(color),   # count
-                3: C_TIME,                # total time → green
-                4: C_WATT,                # avg power → purple
-                5: C_HR,                  # avg HR → red
-                6: C_CAD,                 # avg cadence → blue
-                7: _hex_to_argb(color),   # cum count
-                8: C_TIME,                # cum time
+                1: T_DARK,
+                2: C_TIME,
+                3: C_TIME,
+                4: C_WATT,
+                5: C_HR,
+                6: C_CAD,
+                7: C_TOT,
+                8: C_TOT,
             }
             bold_map = {1, 2, 3, 4, 5, 6, 7, 8}
 
@@ -299,7 +439,7 @@ def build_excel(
     # ── LAST SHEET: ALL BURSTS DETAIL ─────────────────────
     ws_all = wb.create_sheet("All Bursts")
 
-    _write_title(ws_all, "📋  Tutti i Burst — Dettaglio Completo", "A1:J1", BG_MID)
+    _write_title(ws_all, "📋  Tutti i Burst — Dettaglio Completo", "A1:J1", BG_MID, title_color=T_WHITE)
 
     ALL_COLS = [
         ("Threshold",     14),
@@ -334,22 +474,21 @@ def build_excel(
                 round(b["avg_power"]),
                 b["max_power"],
                 b["min_power"],
-                round(b.get("delta_above", 0), 1),
+                int(round(b.get("delta_above", 0))),
                 b["avg_hr"]       if b.get("avg_hr")       else "—",
                 b["avg_cadence"]  if b.get("avg_cadence")  else "—",
             ]
-            # text colors per column
             tc_all = {
-                1: argb_thr,  # threshold label → accent
-                2: T_MUTED,   # rank
-                3: T_DARK,    # start time
-                4: C_WATT,    # duration (power context)
-                5: C_WATT,    # avg W → purple
-                6: C_MAX,     # max W → deep purple
-                7: C_MIN,     # min W → light lavender
-                8: C_DELTA,   # delta → green
-                9: C_HR,      # HR → red
-                10: C_CAD,    # cad → blue
+                1: T_DARK,
+                2: T_MUTED,
+                3: T_DARK,
+                4: C_TIME,
+                5: C_WATT,
+                6: C_MAX,
+                7: C_MIN,
+                8: C_DELTA,
+                9: C_HR,
+                10: C_CAD,
             }
             bold_all = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
