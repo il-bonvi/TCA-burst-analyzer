@@ -179,7 +179,7 @@ def build_excel(
         ]
         # Per-column colors matching the HTML palette
         text_colors = [T_DARK, T_DARK, C_TIME, C_WATT, C_HR, C_CAD]
-        bolds       = [True,   True,   False,  True,   True, True]
+        bolds       = [True,   True,   True,   True,   True, True]
 
         for col_idx, (val, tc, bold) in enumerate(zip(values, text_colors, bolds), start=1):
             cell = ws_sum.cell(row=row_num, column=col_idx, value=val)
@@ -234,11 +234,11 @@ def build_excel(
             ("Duration (s)",   13),
             ("Count",          10),
             ("Total Time",     13),
-            ("Avg Power (W)",  13),
-            ("Avg HR (bpm)",   13),
-            ("Avg Cad (rpm)",  13),
-            ("Cum ≥ Count",    13),
-            ("Cum Time",       13),
+            ("Avg Power (W)",  14),
+            ("Avg HR (bpm)",   14),
+            ("Avg Cad (rpm)",  14),
+            ("Tot ≥ Count",    13),
+            ("Tot Time",       13),
         ]
         _write_header_row(ws, 2, GRID_COLS)
 
@@ -279,7 +279,7 @@ def build_excel(
                 7: _hex_to_argb(color),   # cum count
                 8: C_TIME,                # cum time
             }
-            bold_map = {1, 2, 4, 5, 6, 7}
+            bold_map = {1, 2, 3, 4, 5, 6, 7, 8}
 
             row_num = ws.max_row + 1
             for col_idx, val in enumerate(row_vals, start=1):
@@ -351,7 +351,7 @@ def build_excel(
                 9: C_HR,      # HR → red
                 10: C_CAD,    # cad → blue
             }
-            bold_all = {1, 5, 6, 8, 9, 10}
+            bold_all = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
             row_num = ws_all.max_row + 1
             for col_idx, val in enumerate(row_vals, start=1):
