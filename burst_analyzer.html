@@ -261,20 +261,23 @@
   .tab-btn.active { color:var(--accent); border-color:var(--accent); background:rgba(240,192,64,.08); }
   
   .action-btn {
-    background:transparent; color:var(--muted2); border:1px solid var(--border2);
-    border-radius:6px; padding:6px 10px; cursor:pointer;
+    background:var(--panel); color:var(--muted2); border:1px solid var(--border2);
+    border-radius:6px; padding:8px 14px; cursor:pointer;
     font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
     letter-spacing:.5px; transition: color .2s, border-color .2s, background .2s;
+    margin-left:auto;
   }
-  .action-btn:hover { color:var(--text); border-color:var(--border); background:rgba(255,255,255,.04); }
+  .action-btn:hover { color:var(--text); border-color:var(--border); background:rgba(255,255,255,.06); }
   .action-btn:active { transform:scale(0.96); }
   
   #exportExcelBtn {
-    transition: background .2s, border-color .2s, color .2s, transform .1s;
+    background:rgba(60,207,126,.1) !important; 
+    border-color:rgba(60,207,126,.3) !important; 
+    color:var(--green) !important;
   }
   #exportExcelBtn:hover { 
-    background:rgba(60,207,126,.15); 
-    border-color:rgba(60,207,126,.5); 
+    background:rgba(60,207,126,.2) !important; 
+    border-color:rgba(60,207,126,.6) !important;
   }
   #exportExcelBtn:active { 
     transform:scale(0.96);
@@ -520,8 +523,8 @@
       <div class="tabs" id="tabsNav">
         <button class="tab-btn active" data-tab="tab-list">Analisi</button>
         <button class="tab-btn" data-tab="tab-three">Settings</button>
-        <button class="action-btn" id="reverseOrderBtn" style="margin-left:auto; background:transparent; border:1px solid var(--border2); color:var(--muted2); padding:6px 10px; font-size:11px; border-radius:6px; cursor:pointer; transition:color .2s, border-color .2s, background .2s;">⤴⤵ Inverti</button>
-        <button class="tab-btn" id="exportExcelBtn" style="margin-left:8px; background:rgba(60,207,126,.1); border-color:rgba(60,207,126,.3); color:var(--green);">📊 Export Excel</button>
+        <button class="action-btn" id="reverseOrderBtn">⤴⤵ Inverti</button>
+        <button class="tab-btn" id="exportExcelBtn" style="margin-left:8px;">📊 Export Excel</button>
       </div>
 
       <div class="tab-pane active" id="tab-list">
