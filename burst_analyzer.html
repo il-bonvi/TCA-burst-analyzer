@@ -262,7 +262,13 @@
   .tab-pane { display:none; }
   .tab-pane.active { display:block; }
 
-  .chart-wrap { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px; }
+  .chart-wrap { 
+    background:var(--panel); 
+    border:1px solid var(--border); 
+    border-radius:8px; 
+    padding:12px;
+    transition: transform .4s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity .3s ease;
+  }
   .chart-title {
     font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:700;
     color:var(--muted2); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px;
@@ -956,12 +962,41 @@ function renderDurationGridForThreshold(res, tablesArea){
             detailsArea.classList.remove('open');
             selectedDuration=null;
             selectedBurstKey=null;
+            // Rimuovi la classe active dalla cella
+            document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
+            // Rimetti il grafico al suo posto originale (dopo summary-row)
+            const tabList=document.getElementById('tab-list');
+            const summaryRow=tabList.querySelector('.summary-row');
+            const chartWrap=tabList.querySelector('.chart-wrap');
+            if(summaryRow && chartWrap) summaryRow.parentNode.insertBefore(chartWrap, summaryRow.nextSibling);
             renderPowerTimeline();
             return;
           }
         }
+        // Rimuovi active da tutte le celle e aggiungi alla cella corrente
+        document.querySelectorAll('.duration-cell').forEach(c=>c.classList.remove('active'));
+        cell.classList.add('active');
         selectedDuration=dur;
+        
+        // Sposta il grafico prima di questa soglia
+        const tabList=document.getElementById('tab-list');
+        const chartWrap=tabList.querySelector('.chart-wrap');
+        if(chartWrap && container.parentNode) {
+          container.parentNode.insertBefore(chartWrap, container);
+        }
+        
         renderBurstsForDuration(dur,res,color,container);
+        
+        // Scroll smooth: grafico ben visibile in alto
+        setTimeout(()=>{
+          const chartWrap=document.querySelector('.chart-wrap');
+          if(chartWrap){
+            const chartRect=chartWrap.getBoundingClientRect();
+            const scrollY=window.scrollY;
+            // Posiziona il grafico con margine ridotto dal top (~30px)
+            window.scrollTo({top:scrollY+chartRect.top-2,behavior:'smooth'});
+          }
+        },100);
       });
       body.appendChild(cell);
     });
