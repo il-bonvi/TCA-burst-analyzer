@@ -283,6 +283,19 @@
     transform:scale(0.96);
   }
   
+  #wsLoadAnotherBtn {
+    background:rgba(77,166,255,.1) !important; 
+    border-color:rgba(77,166,255,.3) !important; 
+    color:var(--blue) !important;
+  }
+  #wsLoadAnotherBtn:hover { 
+    background:rgba(77,166,255,.2) !important; 
+    border-color:rgba(77,166,255,.6) !important;
+  }
+  #wsLoadAnotherBtn:active { 
+    transform:scale(0.96);
+  }
+  
   .tab-pane { display:none; }
   .tab-pane.active { display:block; }
 
@@ -529,7 +542,8 @@
       <div class="tabs" id="tabsNav">
         <button class="tab-btn active" data-tab="tab-list">Analisi</button>
         <button class="tab-btn" data-tab="tab-three">Settings</button>
-        <button class="action-btn" id="reverseOrderBtn">⤴⤵ Inverti</button>
+        <button class="tab-btn" id="wsLoadAnotherBtn" style="margin-left:auto;">← Carica Altro FIT</button>
+        <button class="action-btn" id="reverseOrderBtn" style="margin-left:8px;">⤴⤵ Inverti</button>
         <button class="tab-btn" id="exportExcelBtn" style="margin-left:8px;">📊 Export Excel</button>
       </div>
 
@@ -559,7 +573,6 @@
           </div>
           <div style="display:flex; gap:8px; margin-top:12px;">
             <button class="run-btn" id="wsRecalcBtn" style="width:auto; padding:9px 14px;">↻ Ricalcola Stesso FIT</button>
-            <button class="ws-btn" id="wsLoadAnotherBtn" style="width:auto; padding:9px 14px; margin-top:0;">← Carica Altro FIT</button>
           </div>
         </div>
       </div>
