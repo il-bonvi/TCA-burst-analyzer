@@ -259,6 +259,27 @@
   }
   .tab-btn:hover { color:var(--text); border-color:var(--border); }
   .tab-btn.active { color:var(--accent); border-color:var(--accent); background:rgba(240,192,64,.08); }
+  
+  .action-btn {
+    background:transparent; color:var(--muted2); border:1px solid var(--border2);
+    border-radius:6px; padding:6px 10px; cursor:pointer;
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+    letter-spacing:.5px; transition: color .2s, border-color .2s, background .2s;
+  }
+  .action-btn:hover { color:var(--text); border-color:var(--border); background:rgba(255,255,255,.04); }
+  .action-btn:active { transform:scale(0.96); }
+  
+  #exportExcelBtn {
+    transition: background .2s, border-color .2s, color .2s, transform .1s;
+  }
+  #exportExcelBtn:hover { 
+    background:rgba(60,207,126,.15); 
+    border-color:rgba(60,207,126,.5); 
+  }
+  #exportExcelBtn:active { 
+    transform:scale(0.96);
+  }
+  
   .tab-pane { display:none; }
   .tab-pane.active { display:block; }
 
@@ -499,7 +520,8 @@
       <div class="tabs" id="tabsNav">
         <button class="tab-btn active" data-tab="tab-list">Analisi</button>
         <button class="tab-btn" data-tab="tab-three">Settings</button>
-        <button class="tab-btn" id="exportExcelBtn" style="margin-left:auto; background:rgba(60,207,126,.1); border-color:rgba(60,207,126,.3); color:var(--green);">📊 Export Excel</button>
+        <button class="action-btn" id="reverseOrderBtn" style="margin-left:auto; background:transparent; border:1px solid var(--border2); color:var(--muted2); padding:6px 10px; font-size:11px; border-radius:6px; cursor:pointer; transition:color .2s, border-color .2s, background .2s;">⤴⤵ Inverti</button>
+        <button class="tab-btn" id="exportExcelBtn" style="margin-left:8px; background:rgba(60,207,126,.1); border-color:rgba(60,207,126,.3); color:var(--green);">📊 Export Excel</button>
       </div>
 
       <div class="tab-pane active" id="tab-list">
@@ -791,6 +813,8 @@ function showAnalysisWorkspace(){
   document.getElementById('resultsArea').style.display='flex';
   const wsThr=document.getElementById('wsThrCsv');
   if(wsThr&&!wsThr.value.trim()) wsThr.value=thresholds.map(t=>Math.round(t.watt)).join(',');
+  // Assicura che sia sulla tab Analisi dopo il run
+  setActiveTab('tab-list');
 }
 
 function backToUploadFlow(){
@@ -1377,6 +1401,7 @@ async function exportExcel(){
 
   const btn = document.getElementById('exportExcelBtn');
   const originalText = btn.textContent;
+  const savedActiveTab = activeTab;  // Salva la tab attiva
   btn.textContent = '⏳ Generando...';
   btn.disabled = true;
 
@@ -1409,10 +1434,19 @@ async function exportExcel(){
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
+    // Ripristina la tab originale
+    setActiveTab(savedActiveTab);
   }
 }
 
 document.getElementById('exportExcelBtn').addEventListener('click',exportExcel);
+
+function reverseThresholdOrder(){
+  allResults.reverse();
+  renderAllThresholdGrids();
+}
+
+document.getElementById('reverseOrderBtn').addEventListener('click',reverseThresholdOrder);
 
 // ── FILE INPUTS ───────────────────────────────────────────
 document.getElementById('runBtn').addEventListener('click',runAnalysis);
