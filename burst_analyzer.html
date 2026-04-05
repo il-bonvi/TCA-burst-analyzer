@@ -446,6 +446,17 @@
   .fw-700 { font-weight:700; }
   .fw-600 { font-weight:600; }
   
+  /* ─── REMOVE NUMBER INPUT SPINNERS ─── */
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type=number] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  
   /* ─── MEDIA QUERIES ─── */
   @media (max-width:860px) {
     .sidebar { grid-template-columns:1fr; }
@@ -527,7 +538,8 @@
           <div>
             <div class="sec-title">Profilo</div>
             <div class="threshold-selector" id="genderSelector">
-              <button class="threshold-btn active" data-preset="female" title="Femminile: 300, 350, 400W">👩 Femminile</button>
+              <button class="threshold-btn active" data-preset="female" title="Femminile: 300, 350, 400, 450W">👩 Femminile</button>
+              <button class="threshold-btn" data-preset="allieve" title="Allieve: 250, 300, 350, 400W">👧 Allieve</button>
               <button class="threshold-btn" data-preset="male" title="Maschile: 400, 450, 500, 600W">👨 Maschile</button>
             </div>
 
@@ -617,6 +629,7 @@ const API_BASE = 'http://127.0.0.1:8010';
 // ── GENDER PRESETS ────────────────────────────────────────
 const GENDER_PRESETS = {
   female: {label:'👩 Femminile', thresholds:[300,350,400,450]},
+  allieve: {label:'👧 Allieve', thresholds:[250,300,350,400]},
   male:   {label:'👨 Maschile', thresholds:[400,450,500,600]}
 };
 
@@ -738,13 +751,13 @@ function renderThrList(){
 document.getElementById('addThrBtn').addEventListener('click',()=>{
   if(thresholds.length>=8) return;
   const last=thresholds.length?thresholds[thresholds.length-1].watt:250;
-  thresholds.push({watt:last+10,id:nextId++});
+  thresholds.push({watt:last+50,id:nextId++});
   renderThrList();
 });
 document.getElementById('homeAddThrBtn').addEventListener('click',()=>{
   if(thresholds.length>=8) return;
   const last=thresholds.length?thresholds[thresholds.length-1].watt:250;
-  thresholds.push({watt:last+10,id:nextId++});
+  thresholds.push({watt:last+50,id:nextId++});
   renderThrList();
 });
 
