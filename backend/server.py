@@ -92,7 +92,10 @@ async def export_excel(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Errore generazione Excel: {exc}") from exc
 
-    safe_name = "".join(c for c in filename if c.isalnum() or c in "-_.")
+    safe_name = "".join(c for c in filename if c.isalnum() or c in "-_ .")
+    safe_name = " ".join(safe_name.split())
+    if not safe_name:
+        safe_name = "burst_analysis"
     if not safe_name.endswith(".xlsx"):
         safe_name += ".xlsx"
 

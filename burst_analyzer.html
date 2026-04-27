@@ -406,6 +406,89 @@
   .stream-charts-container { display:block; overflow:hidden; flex:1; min-height:0; }
   #streamUnifiedChart { width:100%; height:100%; border-radius:8px; border:1px solid #e5e7eb; background:white; position:relative; }
 
+  .mini-dialog-overlay {
+    position:fixed; inset:0;
+    background:rgba(0,0,0,.55);
+    z-index:700;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s ease;
+  }
+  .mini-dialog-overlay.active { opacity:1; pointer-events:auto; }
+  .mini-dialog {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(.97);
+    width:min(92vw,420px);
+    background:linear-gradient(160deg, rgba(19,21,26,.98), rgba(11,12,14,.98));
+    border:1px solid var(--border2);
+    border-radius:10px;
+    box-shadow:0 24px 60px rgba(0,0,0,.45);
+    padding:16px;
+    z-index:701;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  .mini-dialog.active { opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+  .mini-dialog-title {
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.8px;
+    text-transform:uppercase;
+    color:var(--text);
+    margin-bottom:8px;
+  }
+  .mini-dialog-sub {
+    color:var(--muted2);
+    font-size:12px;
+    margin-bottom:10px;
+    line-height:1.5;
+  }
+  .mini-dialog-input {
+    width:100%;
+    background:var(--bg);
+    color:var(--text);
+    border:1px solid var(--border2);
+    border-radius:6px;
+    padding:9px 10px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    outline:none;
+  }
+  .mini-dialog-input:focus { border-color:var(--accent); }
+  .mini-dialog-actions {
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+    margin-top:12px;
+  }
+  .mini-dialog-btn {
+    border:1px solid var(--border2);
+    border-radius:6px;
+    padding:8px 12px;
+    cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    font-weight:600;
+  }
+  .mini-dialog-btn.cancel {
+    background:transparent;
+    color:var(--muted2);
+  }
+  .mini-dialog-btn.cancel:hover {
+    color:var(--text);
+    border-color:var(--border);
+  }
+  .mini-dialog-btn.confirm {
+    background:rgba(60,207,126,.1);
+    border-color:rgba(60,207,126,.35);
+    color:var(--green);
+  }
+  .mini-dialog-btn.confirm:hover {
+    background:rgba(60,207,126,.18);
+    border-color:rgba(60,207,126,.55);
+  }
+
   .msg { font-family:'IBM Plex Mono',monospace; font-size:11px; padding:9px 13px; border-radius:5px; margin-top:8px; font-weight:500; }
   .msg.error { background:rgba(224,90,43,.14); color:#f87952; border:1px solid rgba(224,90,43,.3); }
   .msg.info  { background:rgba(77,166,255,.10); color:#6dbfff; border:1px solid rgba(77,166,255,.25); }
@@ -621,6 +704,17 @@
   </div>
 </div>
 <div class="chart-tooltip" id="chartTooltip"></div>
+
+<div class="mini-dialog-overlay" id="exportNameOverlay"></div>
+<div class="mini-dialog" id="exportNameDialog" role="dialog" aria-modal="true" aria-labelledby="exportNameTitle">
+  <div class="mini-dialog-title" id="exportNameTitle">Rinomina file Excel</div>
+  <div class="mini-dialog-sub">Inserisci il nome del file da esportare (senza estensione).</div>
+  <input class="mini-dialog-input" id="exportNameInput" type="text" maxlength="120" placeholder="burst_analysis">
+  <div class="mini-dialog-actions">
+    <button class="mini-dialog-btn cancel" id="exportNameCancelBtn">Annulla</button>
+    <button class="mini-dialog-btn confirm" id="exportNameConfirmBtn">Esporta</button>
+  </div>
+</div>
 
 <script>
 const PALETTE = ['#f0c040','#4da6ff','#3ccf7e','#e05a2b','#c084fc','#fb7185','#34d399','#fbbf24'];
@@ -1676,6 +1770,62 @@ function lightenColor(hex,percent){
   return r.toString(16).padStart(2,'0').toUpperCase()+g.toString(16).padStart(2,'0').toUpperCase()+b.toString(16).padStart(2,'0').toUpperCase();
 }
 
+function sanitizeExportFilename(name,fallback='burst_analysis'){
+  const base=String(name||'')
+    .replace(/\.xlsx$/i,'')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g,'')
+    .trim()
+    .replace(/[.\s]+$/g,'');
+  return base||fallback;
+}
+
+function askExportFilename(defaultName){
+  return new Promise(resolve=>{
+    const overlay=document.getElementById('exportNameOverlay');
+    const dialog=document.getElementById('exportNameDialog');
+    const input=document.getElementById('exportNameInput');
+    const cancelBtn=document.getElementById('exportNameCancelBtn');
+    const confirmBtn=document.getElementById('exportNameConfirmBtn');
+    if(!overlay||!dialog||!input||!cancelBtn||!confirmBtn){ resolve(null); return; }
+
+    let done=false;
+    const initialValue=sanitizeExportFilename(defaultName);
+    input.value=initialValue;
+
+    const cleanup=()=>{
+      overlay.classList.remove('active');
+      dialog.classList.remove('active');
+      document.removeEventListener('keydown',onKeydown);
+      overlay.removeEventListener('click',onCancel);
+      cancelBtn.removeEventListener('click',onCancel);
+      confirmBtn.removeEventListener('click',onConfirm);
+    };
+
+    const finish=(value)=>{
+      if(done) return;
+      done=true;
+      cleanup();
+      resolve(value);
+    };
+
+    const onCancel=()=>finish(null);
+    const onConfirm=()=>finish(sanitizeExportFilename(input.value,initialValue));
+    const onKeydown=(e)=>{
+      if(e.key==='Escape'){ e.preventDefault(); onCancel(); }
+      if(e.key==='Enter'){ e.preventDefault(); onConfirm(); }
+    };
+
+    overlay.addEventListener('click',onCancel);
+    cancelBtn.addEventListener('click',onCancel);
+    confirmBtn.addEventListener('click',onConfirm);
+    document.addEventListener('keydown',onKeydown);
+
+    overlay.classList.add('active');
+    dialog.classList.add('active');
+    setTimeout(()=>{ input.focus(); input.select(); },10);
+  });
+}
+
 // ── EXPORT EXCEL (server-side, openpyxl) ─────────────────
 async function exportExcel(){
   if(!allResults.length){ showExportMessage('✗ Nessun dato da esportare'); return; }
@@ -1683,6 +1833,14 @@ async function exportExcel(){
   const btn = document.getElementById('exportExcelBtn');
   const originalText = btn.textContent;
   const savedActiveTab = activeTab;  // Salva la tab attiva
+
+  const baseName = currentFitFile ? currentFitFile.name.replace(/\.fit$/i,'') : 'burst_analysis';
+  const customName = await askExportFilename(baseName);
+  if(customName===null){
+    setActiveTab(savedActiveTab);
+    return;
+  }
+
   btn.textContent = '⏳ Generando...';
   btn.disabled = true;
 
@@ -1690,7 +1848,7 @@ async function exportExcel(){
     const fd = new FormData();
     fd.append('results_json', JSON.stringify(allResults));
     fd.append('min_dur', String(+document.getElementById('minDurSlider').value || 4));
-    fd.append('filename', currentFitFile ? currentFitFile.name.replace(/\.fit$/i,'') : 'burst_analysis');
+    fd.append('filename', customName);
 
     const rsp = await fetch(`${API_BASE}/api/export-excel`, { method: 'POST', body: fd });
     if (!rsp.ok) {
