@@ -743,6 +743,7 @@ let selectedDurations = [];
 let selectedDurationThresholds = [];
 let lastClickedDuration = null;
 let lastClickedThreshold = null;
+let currentActivityDate = null;
 
 function applyGenderPreset(preset){
   if(!GENDER_PRESETS[preset]) return;
@@ -761,6 +762,17 @@ function applyGenderPreset(preset){
 // ── HELPERS ───────────────────────────────────────────────
 const fmtTime = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.round(s%60); return h>0?`${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`:String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); };
 const fmtMmSs = s => { const m=Math.floor(s/60),r=Math.round(s%60); return `${m}:${String(r).padStart(2,'0')}`; };
+
+function toActivityDate(ts){
+  const num=Number(ts);
+  if(!Number.isFinite(num)||num<=0) return null;
+  const d=new Date(num*1000);
+  if(Number.isNaN(d.getTime())) return null;
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}_${m}_${day}`;
+}
 
 function parseThresholdCsv(text){
   const vals=String(text||'').split(',').map(s=>Math.round(+s.trim())).filter(v=>Number.isFinite(v)&&v>=50&&v<=2000);
@@ -948,6 +960,7 @@ async function runAnalysis(){
     const serverData=await analyzeViaServer(currentFitFile,minDur,mergeGap);
     rawRecords=serverData.records||[];
     allResults=(serverData.allResults||[]).map(r=>({threshold:+r.threshold,color:r.color,bursts:r.bursts||[],duration_counts:r.duration_counts||{}}));
+    currentActivityDate=serverData?.stats?.activityDate || toActivityDate(rawRecords[0]?.timestamp) || null;
     if(!rawRecords.length) throw new Error('Nessun dato di potenza trovato.');
     msg.innerHTML=`<div class="msg info">✓ ${rawRecords.length} record · ${fmtTime(rawRecords[rawRecords.length-1].time_sec)}</div>`;
   }catch(err){
@@ -1006,6 +1019,7 @@ function backToUploadFlow(){
   const badge=document.getElementById('fitLoadedBadge');
   if(badge) badge.classList.remove('visible');
   currentFitFile=null;
+  currentActivityDate=null;
   syncConfigViews();
 }
 
@@ -1775,6 +1789,7 @@ function sanitizeExportFilename(name,fallback='burst_analysis'){
     .replace(/\.xlsx$/i,'')
     .replace(/[<>:"/\\|?*\x00-\x1F]/g,'')
     .trim()
+    .replace(/\s+/g,'_')
     .replace(/[.\s]+$/g,'');
   return base||fallback;
 }
@@ -1849,6 +1864,7 @@ async function exportExcel(){
     fd.append('results_json', JSON.stringify(allResults));
     fd.append('min_dur', String(+document.getElementById('minDurSlider').value || 4));
     fd.append('filename', customName);
+    fd.append('activity_date', currentActivityDate || '');
 
     const rsp = await fetch(`${API_BASE}/api/export-excel`, { method: 'POST', body: fd });
     if (!rsp.ok) {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -64,6 +65,10 @@ async def analyze_fit(
         raise HTTPException(status_code=500, detail=f"Errore analisi server: {exc}") from exc
 
     duration_sec = records[-1]["time_sec"] if records else 0
+    activity_date = None
+    first_ts = records[0].get("timestamp") if records else None
+    if isinstance(first_ts, (int, float)):
+        activity_date = datetime.fromtimestamp(first_ts).strftime("%Y_%m_%d")
 
     return {
         "records": records,
@@ -72,6 +77,7 @@ async def analyze_fit(
             "samples": len(records),
             "durationSec": duration_sec,
             "fileName": file.filename,
+            "activityDate": activity_date,
         },
     }
 
@@ -81,6 +87,7 @@ async def export_excel(
     results_json: str = Form(...),
     min_dur: int = Form(4),
     filename: str = Form("burst_analysis"),
+    activity_date: str = Form(""),
 ) -> Response:
     try:
         all_results = json.loads(results_json)
@@ -94,8 +101,14 @@ async def export_excel(
 
     safe_name = "".join(c for c in filename if c.isalnum() or c in "-_ .")
     safe_name = " ".join(safe_name.split())
+    safe_name = safe_name.replace(" ", "_")
     if not safe_name:
         safe_name = "burst_analysis"
+
+    safe_activity_date = "".join(c for c in activity_date if c.isdigit() or c == "_")
+    if len(safe_activity_date) == 10 and safe_activity_date[4] == "_" and safe_activity_date[7] == "_":
+        safe_name = f"{safe_activity_date}_{safe_name}"
+
     if not safe_name.endswith(".xlsx"):
         safe_name += ".xlsx"
 
