@@ -83,7 +83,7 @@ def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int,
     merged = _find_and_merge_burst_segments(records, threshold, merge_gap)
 
     bursts: list[dict[str, Any]] = []
-    for idx, seg in enumerate(merged):
+    for seg in merged:
         s = seg["s"]
         e = seg["e"]
 
@@ -104,7 +104,7 @@ def detect_bursts(records: list[dict[str, Any]], threshold: float, min_dur: int,
 
         bursts.append(
             {
-                "rank": idx + 1,
+                "rank": len(bursts) + 1,
                 "seg_start": s,
                 "seg_end": e,
                 "start_time": records[s]["time_sec"],
@@ -160,7 +160,7 @@ def analyze_records(
             "threshold": watt, 
             "color": color, 
             "bursts": bursts,
-            "duration_counts": duration_counts  # NEW: mappa delle durate
+            "duration_counts": duration_counts
         })
 
     return results
